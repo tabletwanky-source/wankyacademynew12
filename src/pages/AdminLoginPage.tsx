@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GraduationCap, ArrowLeft, Loader2, Lock, ShieldCheck } from 'lucide-react';
 import { useAuth, ADMIN_EMAILS } from '../context/AuthContext';
-import { db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '../components/language/LanguageSwitcher';
 
@@ -23,29 +22,22 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      // 1. Regular login
       await login(email, password);
-      
-      // 2. Check if the logged in user is actually an admin
-      // Note: We'll wait a brief moment for the AuthContext to update OR we can check manually here
-      // Manual check is safer for the direct redirect
-      const user = (await import('firebase/auth')).getAuth().currentUser;
-      if (!user) throw new Error('Auth failed');
 
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Auth failed');
 
       const userEmail = user.email?.toLowerCase().trim() || '';
       const isHardcodedAdmin = ADMIN_EMAILS.includes(userEmail);
-      const isRoleAdmin = userSnap.exists() && userSnap.data().role === 'admin';
+
+      const { data: profile } = await supabase.from('profiles').select('role').eq('uid', user.id).maybeSingle();
+      const isRoleAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
 
       if (!isHardcodedAdmin && !isRoleAdmin) {
-        // Not an admin? Sign out immediately.
-        await (await import('firebase/auth')).signOut((await import('../lib/firebase')).auth);
+        await supabase.auth.signOut();
         throw new Error('Access Denied: Administrative privileges required.');
       }
 
-      console.log('Admin login successful, redirecting to /admin-dashboard');
       navigate('/admin-dashboard');
     } catch (err: any) {
       console.error(err);

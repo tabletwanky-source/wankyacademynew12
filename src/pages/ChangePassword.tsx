@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { updatePassword } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
@@ -28,11 +26,12 @@ export default function ChangePassword() {
 
     setLoading(true);
     try {
-      await updatePassword(user, newPassword);
-      await updateDoc(doc(db, 'users', user.uid), {
-        mustChangePassword: false,
-        temporaryPassword: false
-      });
+      const { error: pwError } = await supabase.auth.updateUser({ password: newPassword });
+      if (pwError) throw pwError;
+      await supabase.from('profiles').update({
+        must_change_password: false,
+        temporary_password: false
+      }).eq('uid', user.id);
       toast.success('Password changed successfully');
       
       // Redirect based on role

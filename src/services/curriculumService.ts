@@ -1,97 +1,99 @@
-import { db } from '../lib/firebase';
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  serverTimestamp,
-  onSnapshot
-} from 'firebase/firestore';
-import { Curriculum, Module, Lesson, CourseType } from '../types';
+import { supabase } from '../lib/supabase';
+import { mapCurriculum, mapCurriculumToDb } from '../lib/supabaseHelpers';
+import { Curriculum, Module, CourseType } from '../types';
 
 export const curriculumService = {
-  // Curriculum CRUD
   async createCurriculum(data: Omit<Curriculum, 'id' | 'createdAt' | 'updatedAt' | 'totalLessons'>) {
-    const docRef = await addDoc(collection(db, 'curriculums'), {
-      ...data,
-      totalLessons: 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-    return docRef.id;
+    const dbData = {
+      ...mapCurriculumToDb(data),
+      total_lessons: 0
+    };
+    const { data: result, error } = await supabase.from('curriculums').insert(dbData).select().single();
+    if (error) throw error;
+    return result.id;
   },
 
   async updateCurriculum(id: string, data: Partial<Curriculum>) {
-    const docRef = doc(db, 'curriculums', id);
-    await updateDoc(docRef, {
-      ...data,
-      updatedAt: serverTimestamp()
-    });
+    const { error } = await supabase.from('curriculums').update({
+      ...mapCurriculumToDb(data),
+      updated_at: new Date().toISOString()
+    }).eq('id', id);
+    if (error) throw error;
   },
 
   async deleteCurriculum(id: string) {
-    await deleteDoc(doc(db, 'curriculums', id));
+    const { error } = await supabase.from('curriculums').delete().eq('id', id);
+    if (error) throw error;
   },
 
   async getCurriculum(id: string) {
-    const docRef = doc(db, 'curriculums', id);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      return { id: snap.id, ...snap.data() } as Curriculum;
-    }
-    return null;
+    const { data } = await supabase.from('curriculums').select('*').eq('id', id).maybeSingle();
+    return data ? mapCurriculum(data) as Curriculum : null;
   },
 
-  // Realtime Listeners
   subscribeAllCurriculums(callback: (curriculums: Curriculum[]) => void) {
-    const q = query(collection(db, 'curriculums'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snap) => {
-      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Curriculum[]);
-    });
+    const load = async () => {
+      const { data } = await supabase.from('curriculums').select('*').order('created_at', { ascending: false });
+      callback((data || []).map(mapCurriculum) as Curriculum[]);
+    };
+
+    const channel = supabase
+      .channel('curriculums-all')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'curriculums' }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   subscribePublishedCurriculums(department: CourseType, callback: (curriculums: Curriculum[]) => void) {
-    const q = query(
-      collection(db, 'curriculums'), 
-      where('department', '==', department),
-      where('published', '==', true),
-      orderBy('createdAt', 'desc')
-    );
-    return onSnapshot(q, (snap) => {
-      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Curriculum[]);
-    });
+    const load = async () => {
+      const { data } = await supabase
+        .from('curriculums')
+        .select('*')
+        .eq('department', department)
+        .eq('published', true)
+        .order('created_at', { ascending: false });
+      callback((data || []).map(mapCurriculum) as Curriculum[]);
+    };
+
+    const channel = supabase
+      .channel(`curriculums-${department}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'curriculums' }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   subscribeProfessorCurriculums(professorUid: string, callback: (curriculums: Curriculum[]) => void) {
-    const q = query(
-      collection(db, 'curriculums'), 
-      where('assignedProfessor', '==', professorUid),
-      orderBy('createdAt', 'desc')
-    );
-    return onSnapshot(q, (snap) => {
-      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Curriculum[]);
-    });
+    const load = async () => {
+      const { data } = await supabase
+        .from('curriculums')
+        .select('*')
+        .eq('assigned_professor', professorUid)
+        .order('created_at', { ascending: false });
+      callback((data || []).map(mapCurriculum) as Curriculum[]);
+    };
+
+    const channel = supabase
+      .channel(`curriculums-prof-${professorUid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'curriculums' }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
-  // Modules CRUD (Nested in Curriculum doc for now to keep it simple, or as a subcollection)
-  // Let's use a nested array 'modules' in the curriculum document for better realtime sync of the whole structure
-  // but if it gets too large, we should switch. For this app, nested is likely fine.
-  
   async saveModules(curriculumId: string, modules: Module[]) {
-    const docRef = doc(db, 'curriculums', curriculumId);
     let totalLessons = 0;
     modules.forEach(m => totalLessons += m.lessons?.length || 0);
-    
-    await updateDoc(docRef, {
+
+    const { error } = await supabase.from('curriculums').update({
       modules,
-      totalLessons,
-      updatedAt: serverTimestamp()
-    });
+      total_lessons: totalLessons,
+      updated_at: new Date().toISOString()
+    }).eq('id', curriculumId);
+    if (error) throw error;
   }
 };

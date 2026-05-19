@@ -1,35 +1,11 @@
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  setDoc, 
-  getDoc,
-  query, 
-  where, 
-  orderBy,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  serverTimestamp,
-  onSnapshot
-} from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import { mapVideo, mapVideoToDb, mapHomework, mapHomeworkToDb, mapSubmission, mapSubmissionToDb } from '../lib/supabaseHelpers';
 import { CourseType, Video, Homework, HomeworkSubmission } from '../types';
-import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 
 export const learningService = {
   async getVideo(id: string) {
-    try {
-      const docRef = doc(db, 'videos', id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return { ...docSnap.data(), id: docSnap.id } as Video;
-      }
-      return null;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `videos/${id}`);
-      throw error;
-    }
+    const { data } = await supabase.from('videos').select('*').eq('id', id).maybeSingle();
+    return data ? mapVideo(data) as Video : null;
   },
 
   getEmbedUrl(video: Video) {
@@ -44,271 +20,239 @@ export const learningService = {
     return video.videoUrl || video.url || null;
   },
 
-  // Video Lessons
   subscribeVideosByDepartment(department: CourseType, callback: (videos: Video[]) => void) {
-    if (!auth.currentUser) return () => {};
-    
-    const q = query(
-      collection(db, 'videos'), 
-      where('department', '==', department),
-      orderBy('createdAt', 'desc')
-    );
-    return onSnapshot(q, (snap) => {
-      const videos = snap.docs.map(d => ({ ...d.data(), id: d.id })) as Video[];
-      callback(videos);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'videos');
-    });
+    const load = async () => {
+      const { data } = await supabase
+        .from('videos')
+        .select('*')
+        .eq('department', department)
+        .order('created_at', { ascending: false });
+      callback((data || []).map(mapVideo) as Video[]);
+    };
+
+    const channel = supabase
+      .channel(`videos-${department}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'videos' }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   async getVideosByDepartment(department: CourseType) {
-    try {
-      const q = query(
-        collection(db, 'videos'), 
-        where('department', '==', department),
-        orderBy('createdAt', 'desc')
-      );
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ ...d.data(), id: d.id })) as Video[];
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'videos');
-      throw error;
-    }
+    const { data, error } = await supabase
+      .from('videos')
+      .select('*')
+      .eq('department', department)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapVideo) as Video[];
   },
 
   async addVideo(data: Omit<Video, 'id' | 'createdAt'>) {
-    try {
-      return await addDoc(collection(db, 'videos'), {
-        ...data,
-        createdAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'videos');
-      throw error;
-    }
+    const { data: result, error } = await supabase.from('videos').insert(mapVideoToDb(data)).select().single();
+    if (error) throw error;
+    return result;
   },
 
   async updateVideo(id: string, data: Partial<Video>) {
-    try {
-      const ref = doc(db, 'videos', id);
-      await updateDoc(ref, {
-        ...data,
-        updatedAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `videos/${id}`);
-      throw error;
-    }
+    const { error } = await supabase.from('videos').update(mapVideoToDb(data)).eq('id', id);
+    if (error) throw error;
   },
 
   async deleteVideo(id: string) {
-    try {
-      await deleteDoc(doc(db, 'videos', id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `videos/${id}`);
-      throw error;
-    }
+    const { error } = await supabase.from('videos').delete().eq('id', id);
+    if (error) throw error;
   },
 
-  // Video Comments
   subscribeVideoComments(videoId: string, callback: (comments: any[]) => void) {
-    if (!auth.currentUser) return () => {};
+    const load = async () => {
+      const { data } = await supabase
+        .from('video_comments')
+        .select('*')
+        .eq('video_id', videoId)
+        .order('created_at', { ascending: true });
+      callback((data || []).map(r => ({
+        id: r.id,
+        videoId: r.video_id,
+        userId: r.user_id,
+        userName: r.user_name,
+        userRole: r.user_role,
+        content: r.content,
+        createdAt: r.created_at
+      })));
+    };
 
-    const q = query(
-      collection(db, 'videoComments'),
-      where('videoId', '==', videoId),
-      orderBy('createdAt', 'asc')
-    );
-    return onSnapshot(q, (snap) => {
-      callback(snap.docs.map(d => ({ ...d.data(), id: d.id })));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'videoComments');
-    });
+    const channel = supabase
+      .channel(`video-comments-${videoId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'video_comments', filter: `video_id=eq.${videoId}` }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   async addVideoComment(data: any) {
-    try {
-      return await addDoc(collection(db, 'videoComments'), {
-        ...data,
-        createdAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'videoComments');
-      throw error;
-    }
+    const { error } = await supabase.from('video_comments').insert({
+      video_id: data.videoId,
+      user_id: data.userId,
+      user_name: data.userName,
+      user_role: data.userRole || 'student',
+      content: data.content
+    });
+    if (error) throw error;
   },
 
-  // Video Progress
   subscribeVideoProgress(studentUid: string, callback: (progress: any[]) => void) {
-    if (!auth.currentUser) return () => {};
+    const load = async () => {
+      const { data } = await supabase
+        .from('video_progress')
+        .select('*')
+        .eq('student_uid', studentUid);
+      callback((data || []).map(r => ({
+        id: r.id,
+        studentUid: r.student_uid,
+        videoId: r.video_id,
+        progress: r.progress,
+        completed: r.completed,
+        lastUpdated: r.last_updated
+      })));
+    };
 
-    const q = query(
-      collection(db, 'videoProgress'),
-      where('studentUid', '==', studentUid)
-    );
-    return onSnapshot(q, (snap) => {
-      callback(snap.docs.map(d => ({ ...d.data(), id: d.id })));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'videoProgress');
-    });
+    const channel = supabase
+      .channel(`video-progress-${studentUid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'video_progress', filter: `student_uid=eq.${studentUid}` }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   async updateVideoProgress(studentUid: string, videoId: string, progress: number, completed: boolean) {
-    try {
-      const q = query(
-        collection(db, 'videoProgress'),
-        where('studentUid', '==', studentUid),
-        where('videoId', '==', videoId)
-      );
-      const snap = await getDocs(q);
-      
-      if (snap.empty) {
-        await addDoc(collection(db, 'videoProgress'), {
-          studentUid,
-          videoId,
-          progress,
-          completed,
-          lastUpdated: serverTimestamp()
-        });
-      } else {
-        const docRef = doc(db, 'videoProgress', snap.docs[0].id);
-        await updateDoc(docRef, {
-          progress,
-          completed,
-          lastUpdated: serverTimestamp()
-        });
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'videoProgress');
-      throw error;
-    }
+    const { error } = await supabase.from('video_progress').upsert({
+      student_uid: studentUid,
+      video_id: videoId,
+      progress,
+      completed,
+      last_updated: new Date().toISOString()
+    }, { onConflict: 'student_uid,video_id' });
+    if (error) throw error;
   },
 
-  // Homework Assignments
   subscribeHomeworkByDepartment(department: CourseType, callback: (homework: Homework[]) => void) {
-    if (!auth.currentUser) return () => {};
+    const load = async () => {
+      const { data } = await supabase
+        .from('homework')
+        .select('*')
+        .eq('department', department)
+        .order('created_at', { ascending: false });
+      callback((data || []).map(mapHomework) as Homework[]);
+    };
 
-    const q = query(
-      collection(db, 'homework'), 
-      where('department', '==', department),
-      orderBy('createdAt', 'desc')
-    );
-    return onSnapshot(q, (snap) => {
-      const homework = snap.docs.map(d => ({ ...d.data(), id: d.id })) as Homework[];
-      callback(homework);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'homework');
-    });
+    const channel = supabase
+      .channel(`homework-${department}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'homework' }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   async getHomeworkByDepartment(department: CourseType) {
-    try {
-      const q = query(
-        collection(db, 'homework'), 
-        where('department', '==', department),
-        orderBy('createdAt', 'desc')
-      );
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ ...d.data(), id: d.id })) as Homework[];
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'homework');
-      throw error;
-    }
+    const { data, error } = await supabase
+      .from('homework')
+      .select('*')
+      .eq('department', department)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapHomework) as Homework[];
   },
 
   async addHomework(data: Omit<Homework, 'id' | 'createdAt'>) {
-    try {
-      return await addDoc(collection(db, 'homework'), {
-        ...data,
-        createdAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'homework');
-      throw error;
-    }
+    const { data: result, error } = await supabase.from('homework').insert(mapHomeworkToDb(data)).select().single();
+    if (error) throw error;
+    return result;
   },
 
   async deleteHomework(id: string) {
-    try {
-      await deleteDoc(doc(db, 'homework', id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `homework/${id}`);
-      throw error;
-    }
+    const { error } = await supabase.from('homework').delete().eq('id', id);
+    if (error) throw error;
   },
 
-  // Homework Submissions
   subscribeSubmissionsByHomework(homeworkId: string, callback: (submissions: HomeworkSubmission[]) => void) {
-    if (!auth.currentUser) return () => {};
+    const load = async () => {
+      const { data } = await supabase
+        .from('homework_submissions')
+        .select('*')
+        .eq('homework_id', homeworkId)
+        .order('submitted_at', { ascending: false });
+      callback((data || []).map(mapSubmission) as HomeworkSubmission[]);
+    };
 
-    const q = query(
-      collection(db, 'homeworkSubmissions'),
-      where('homeworkId', '==', homeworkId),
-      orderBy('submittedAt', 'desc')
-    );
-    return onSnapshot(q, (snap) => {
-      const submissions = snap.docs.map(d => ({ ...d.data(), id: d.id })) as HomeworkSubmission[];
-      callback(submissions);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'homeworkSubmissions');
-    });
+    const channel = supabase
+      .channel(`submissions-hw-${homeworkId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'homework_submissions', filter: `homework_id=eq.${homeworkId}` }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   subscribeAllSubmissionsByDepartment(department: CourseType, callback: (submissions: HomeworkSubmission[]) => void) {
-    if (!auth.currentUser) return () => {};
+    const load = async () => {
+      const { data } = await supabase
+        .from('homework_submissions')
+        .select('*')
+        .eq('department', department)
+        .order('submitted_at', { ascending: false });
+      callback((data || []).map(mapSubmission) as HomeworkSubmission[]);
+    };
 
-    const q = query(
-      collection(db, 'homeworkSubmissions'),
-      where('department', '==', department),
-      orderBy('submittedAt', 'desc')
-    );
-    return onSnapshot(q, (snap) => {
-      const submissions = snap.docs.map(d => ({ ...d.data(), id: d.id })) as HomeworkSubmission[];
-      callback(submissions);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'homeworkSubmissions');
-    });
+    const channel = supabase
+      .channel(`submissions-dept-${department}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'homework_submissions' }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   subscribeStudentSubmissions(studentUid: string, callback: (submissions: HomeworkSubmission[]) => void) {
-    if (!auth.currentUser) return () => {};
+    const load = async () => {
+      const { data } = await supabase
+        .from('homework_submissions')
+        .select('*')
+        .eq('student_uid', studentUid)
+        .order('submitted_at', { ascending: false });
+      callback((data || []).map(mapSubmission) as HomeworkSubmission[]);
+    };
 
-    const q = query(
-      collection(db, 'homeworkSubmissions'),
-      where('studentUid', '==', studentUid),
-      orderBy('submittedAt', 'desc')
-    );
-    return onSnapshot(q, (snap) => {
-      const submissions = snap.docs.map(d => ({ ...d.data(), id: d.id })) as HomeworkSubmission[];
-      callback(submissions);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'homeworkSubmissions');
-    });
+    const channel = supabase
+      .channel(`submissions-student-${studentUid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'homework_submissions', filter: `student_uid=eq.${studentUid}` }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   async gradeSubmission(submissionId: string, data: { grade: number; feedback: string; status: 'graded' }) {
-    try {
-      const ref = doc(db, 'homeworkSubmissions', submissionId);
-      await updateDoc(ref, {
-        ...data,
-        gradedAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `homeworkSubmissions/${submissionId}`);
-      throw error;
-    }
+    const { error } = await supabase.from('homework_submissions').update({
+      grade: data.grade,
+      feedback: data.feedback,
+      status: data.status,
+      graded_at: new Date().toISOString()
+    }).eq('id', submissionId);
+    if (error) throw error;
   },
 
   async submitHomework(data: Omit<HomeworkSubmission, 'id' | 'submittedAt' | 'gradedAt'>) {
-    try {
-      return await addDoc(collection(db, 'homeworkSubmissions'), {
-        ...data,
-        submittedAt: serverTimestamp(),
-        status: data.status || 'submitted'
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'homeworkSubmissions');
-      throw error;
-    }
+    const dbData = {
+      ...mapSubmissionToDb(data),
+      status: data.status || 'submitted'
+    };
+    const { data: result, error } = await supabase.from('homework_submissions').insert(dbData).select().single();
+    if (error) throw error;
+    return result;
   }
 };

@@ -72,8 +72,7 @@ import { learningService } from '../services/learningService';
 import { examService } from '../services/examService';
 import { certificateService } from '../services/certificateService';
 import { Exam, Homework, ExamResult, Certificate, HomeworkSubmission } from '../types';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 
 const DashboardHome = () => {
   const { studentData } = useAuth();
@@ -217,16 +216,16 @@ const DashboardHome = () => {
       updateDashboard();
     });
 
-    const qResults = query(
-      collection(db, 'examResults'),
-      where('studentId', '==', studentData.uid)
-    );
-    const unsubResults = onSnapshot(qResults, (snap) => {
-      results = snap.docs.map(d => ({ ...d.data(), id: d.id })) as ExamResult[];
-      updateDashboard();
-    }, (error) => {
-      console.error("Dashboard results snapshot error:", error);
-    });
+    const loadResults = async () => {
+      try {
+        results = await examService.getStudentResults(studentData.uid);
+        updateDashboard();
+      } catch (error) {
+        console.error("Dashboard results error:", error);
+      }
+    };
+    loadResults();
+    const unsubResults = () => {};
 
     return () => {
       unsubExams();

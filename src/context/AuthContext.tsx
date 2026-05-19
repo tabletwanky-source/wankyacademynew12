@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signOut, signInWithEmailAndPassword } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { Session, User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import { AppUser, UserRole, Student, Professor } from '../types';
 
 interface AuthContextType {
@@ -30,87 +29,85 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userData, setUserData] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let unsubscribeUser: (() => void) | undefined;
+  const fetchUserData = async (userId: string, email: string) => {
+    const isWhitelisted = ADMIN_EMAILS.includes(email.toLowerCase().trim());
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
-      if (unsubscribeUser) {
-        unsubscribeUser();
-        unsubscribeUser = undefined;
-      }
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('uid', userId)
+      .maybeSingle();
 
-      setUser(currentUser);
-      
-      if (currentUser) {
-        const email = currentUser.email?.toLowerCase().trim() || '';
-        const isWhitelisted = ADMIN_EMAILS.includes(email);
-        
-        const userRef = doc(db, 'users', currentUser.uid);
-        
-        unsubscribeUser = onSnapshot(userRef, async (userSnap) => {
-          if (userSnap.exists()) {
-            const data = userSnap.data() as AppUser;
-            if (isWhitelisted && data.role !== 'admin') {
-              setUserData({ ...data, role: 'admin' });
-            } else {
-              setUserData(data);
-            }
-          } else {
-            // If user exists in Auth but not in Firestore, create default entry
-            const defaultData: AppUser = {
-              uid: currentUser.uid,
-              email: email,
-              fullName: currentUser.displayName || 'Étudiant',
-              role: isWhitelisted ? 'admin' : 'student',
-              department: 'Multimédia', // Default department
-              active: true,
-              status: 'active',
-              createdAt: new Date()
-            } as any;
+    if (error) {
+      console.error('Error fetching user data:', error);
+      setUserData(null);
+      return;
+    }
 
-            try {
-              const { setDoc } = await import('firebase/firestore');
-              await setDoc(userRef, defaultData);
-              // Snapshot will trigger again once doc is created
-            } catch (err) {
-              console.error("Error creating default user record:", err);
-              if (isWhitelisted) {
-                setUserData(defaultData);
-              } else {
-                setUserData(null);
-              }
-            }
-          }
-          setLoading(false);
-        }, (err) => {
-          console.error("Error fetching user data:", err);
-          setUserData(null);
-          setLoading(false);
-        });
+    if (data) {
+      const profile = mapProfileToAppUser(data);
+      if (isWhitelisted && profile.role !== 'admin') {
+        setUserData({ ...profile, role: 'admin' } as AppUser);
       } else {
-        setUserData(null);
-        setLoading(false);
+        setUserData(profile);
       }
+    } else {
+      // Create default profile if missing
+      const defaultProfile = {
+        uid: userId,
+        email,
+        full_name: 'Étudiant',
+        role: isWhitelisted ? 'admin' : 'student',
+        department: 'Informatique',
+        active: true,
+        status: 'active'
+      };
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert(defaultProfile);
+      if (!insertError) {
+        setUserData(mapProfileToAppUser(defaultProfile) as AppUser);
+      }
+    }
+  };
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSessionChange(session);
     });
 
-    return () => {
-      unsubscribeAuth();
-      if (unsubscribeUser) unsubscribeUser();
-    };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      (async () => {
+        await handleSessionChange(session);
+      })();
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
+  const handleSessionChange = async (session: Session | null) => {
+    if (session?.user) {
+      setUser(session.user);
+      await fetchUserData(session.user.id, session.user.email || '');
+    } else {
+      setUser(null);
+      setUserData(null);
+    }
+    setLoading(false);
+  };
+
   const login = async (email: string, pass: string) => {
-    await signInWithEmailAndPassword(auth, email, pass);
+    const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
   };
 
   const loginWithGoogle = async () => {
-    const { googleProvider } = await import('../lib/firebase');
-    const { signInWithPopup } = await import('firebase/auth');
-    await signInWithPopup(auth, googleProvider);
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+    if (error) throw error;
   };
 
   const logout = async () => {
-    await signOut(auth);
+    await supabase.auth.signOut();
   };
 
   const role = userData?.role || null;
@@ -118,16 +115,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const professorData = role === 'professor' ? (userData as Professor) : null;
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      userData, 
-      studentData, 
-      professorData, 
-      role, 
-      loading, 
-      login, 
-      loginWithGoogle, 
-      logout 
+    <AuthContext.Provider value={{
+      user,
+      userData,
+      studentData,
+      professorData,
+      role,
+      loading,
+      login,
+      loginWithGoogle,
+      logout
     }}>
       {children}
     </AuthContext.Provider>
@@ -141,3 +138,32 @@ export const useAuth = () => {
   }
   return context;
 };
+
+// Maps snake_case DB row to camelCase AppUser
+function mapProfileToAppUser(row: any): AppUser {
+  return {
+    uid: row.uid,
+    email: row.email,
+    fullName: row.full_name || row.fullName || '',
+    role: row.role,
+    department: row.department,
+    active: row.active ?? true,
+    status: row.status ?? 'active',
+    phoneNumber: row.phone_number || row.phoneNumber || '',
+    phone: row.phone || '',
+    whatsapp: row.whatsapp || '',
+    address: row.address || '',
+    bio: row.bio || '',
+    emergencyContact: row.emergency_contact || '',
+    dateOfBirth: row.date_of_birth || '',
+    photoURL: row.photo_url || row.photoURL || '',
+    profileImageUrl: row.profile_image_url || '',
+    studentId: row.student_id || row.studentId || '',
+    studentCode: row.student_code || '',
+    mustChangePassword: row.must_change_password ?? false,
+    temporaryPassword: row.temporary_password ?? false,
+    lastLogin: row.last_login || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  } as any;
+}

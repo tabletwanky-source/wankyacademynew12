@@ -42,8 +42,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { db, auth } from '../lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import LanguageSwitcher from '../components/language/LanguageSwitcher';
 
 import IdentityManagement from './admin/IdentityManagement';
@@ -105,37 +104,16 @@ const AdminDashboardHome = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    const load = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
 
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
-      const users = snap.docs.map(d => d.data());
-      const students = users.filter((u: any) => u.role === 'student');
-      const professors = users.filter((u: any) => u.role === 'professor');
-      
-      const perCourse = students.reduce((acc: any, s: any) => {
-        acc[s.department] = (acc[s.department] || 0) + 1;
-        return acc;
-      }, {});
-
-      setStats((prev: any) => ({
-        ...prev,
-        totalStudents: students.length,
-        totalProfessors: professors.length,
-        perCourse
-      }));
-      setLoading(false);
-    }, (error) => {
-      console.error("Admin dashboard users snapshot error:", error);
-      setLoading(false);
-    });
-
-    // We can also subscribe to payments and courses here if needed
-    // For now, these are the most critical real-time ones
-    adminService.getDashboardStats().then(s => {
-      setStats((prev: any) => ({ ...prev, ...s }));
-    });
-
-    return () => unsubUsers();
+      adminService.getDashboardStats().then(s => {
+        setStats((prev: any) => ({ ...prev, ...s }));
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    };
+    load();
   }, []);
 
   if (loading) return (

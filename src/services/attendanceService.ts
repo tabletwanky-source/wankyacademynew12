@@ -1,66 +1,50 @@
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  setDoc, 
-  getDoc,
-  query, 
-  where, 
-  orderBy,
-  addDoc,
-  serverTimestamp,
-  onSnapshot
-} from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import { mapAttendance, mapAttendanceToDb } from '../lib/supabaseHelpers';
 import { Attendance } from '../types';
-import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 
 export const attendanceService = {
-  // Attendance
   subscribeStudentAttendance(studentUid: string, callback: (attendance: Attendance[]) => void) {
-    if (!auth.currentUser) return () => {};
+    const load = async () => {
+      const { data } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('student_uid', studentUid)
+        .order('date', { ascending: false });
+      callback((data || []).map(mapAttendance) as Attendance[]);
+    };
 
-    const q = query(
-      collection(db, 'attendance'), 
-      where('studentUid', '==', studentUid),
-      orderBy('date', 'desc')
-    );
-    return onSnapshot(q, (snap) => {
-      const attendance = snap.docs.map(d => ({ ...d.data(), id: d.id })) as Attendance[];
-      callback(attendance);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'attendance');
-    });
+    const channel = supabase
+      .channel(`attendance-${studentUid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `student_uid=eq.${studentUid}` }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   async getStudentAttendance(studentUid: string) {
-    const q = query(
-      collection(db, 'attendance'), 
-      where('studentUid', '==', studentUid),
-      orderBy('date', 'desc')
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...d.data(), id: d.id })) as Attendance[];
+    const { data } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('student_uid', studentUid)
+      .order('date', { ascending: false });
+    return (data || []).map(mapAttendance) as Attendance[];
   },
 
   async markAttendance(data: Omit<Attendance, 'id' | 'createdAt'> | Omit<Attendance, 'id' | 'createdAt'>[]) {
     const records = Array.isArray(data) ? data : [data];
-    const promises = records.map(record => 
-      addDoc(collection(db, 'attendance'), {
-        ...record,
-        createdAt: serverTimestamp()
-      })
-    );
-    return await Promise.all(promises);
+    const dbRecords = records.map(mapAttendanceToDb);
+    const { error } = await supabase.from('attendance').insert(dbRecords);
+    if (error) throw error;
   },
 
   async getDailyAttendance(department: string, date: any) {
-    const q = query(
-      collection(db, 'attendance'), 
-      where('department', '==', department),
-      where('date', '==', date)
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...d.data(), id: d.id })) as Attendance[];
+    const dateStr = typeof date === 'string' ? date : date?.toDate?.()?.toISOString?.()?.split('T')[0] || String(date);
+    const { data } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('department', department)
+      .eq('date', dateStr);
+    return (data || []).map(mapAttendance) as Attendance[];
   }
 };

@@ -19,8 +19,8 @@ import {
   Award
 } from 'lucide-react';
 import { AppUser, Student, AttendanceStatus, ExamResult, Payment, Homework } from '../../types';
-import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { supabase } from '../../lib/supabase';
+import { mapProfileToAppUser } from '../../lib/supabaseHelpers';
 import { motion } from 'motion/react';
 
 export default function UserProfileDetail() {
@@ -39,21 +39,34 @@ export default function UserProfileDetail() {
 
     const fetchUser = async () => {
       try {
-        const userDoc = await getDoc(doc(db, 'users', id));
-        if (userDoc.exists()) {
-          const userData = { ...userDoc.data(), uid: id } as AppUser;
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('uid', id).maybeSingle();
+        if (profileData) {
+          const userData = mapProfileToAppUser(profileData) as AppUser;
           setUser(userData);
-          
-          // Fetch related data
-          const [examsSnap, paymentsSnap, attendanceSnap] = await Promise.all([
-            getDocs(query(collection(db, 'examResults'), where('studentId', '==', userData.uid), orderBy('submittedAt', 'desc'))),
-            getDocs(query(collection(db, 'payments'), where('studentId', '==', id), orderBy('paymentDate', 'desc'))), // using id for consistency if uid is not in all
-            getDocs(query(collection(db, 'attendance'), where('studentUid', '==', id), orderBy('date', 'desc')))
+
+          const [examsRes, paymentsRes, attendanceRes] = await Promise.all([
+            supabase.from('exam_results').select('*').eq('student_id', id).order('submitted_at', { ascending: false }),
+            supabase.from('payments').select('*').eq('student_uid', id).order('created_at', { ascending: false }),
+            supabase.from('attendance').select('*').eq('student_uid', id).order('date', { ascending: false })
           ]);
 
-          setExamResults(examsSnap.docs.map(d => ({ ...d.data(), id: d.id })) as ExamResult[]);
-          setPayments(paymentsSnap.docs.map(d => ({ ...d.data(), id: d.id })) as Payment[]);
-          setAttendance(attendanceSnap.docs.map(d => ({ ...d.data(), id: d.id })));
+          setExamResults((examsRes.data || []).map(r => ({
+            id: r.id, studentId: r.student_id, studentCode: r.student_code,
+            examId: r.exam_id, score: r.score, totalPoints: r.total_points,
+            percentage: r.percentage, passed: r.passed, submittedAt: r.submitted_at,
+            answers: r.answers, attempt: r.attempt
+          })) as ExamResult[]);
+
+          setPayments((paymentsRes.data || []).map(p => ({
+            id: p.id, studentId: p.student_uid, studentCode: p.student_id,
+            amount: p.amount, paymentType: p.payment_type, paymentDate: p.created_at,
+            paymentStatus: 'Paid', remainingBalance: 0
+          })) as Payment[]);
+
+          setAttendance((attendanceRes.data || []).map(a => ({
+            id: a.id, studentUid: a.student_uid, professorUid: a.professor_uid,
+            department: a.department, status: a.status, date: a.date, createdAt: a.created_at
+          })));
         }
       } catch (error) {
         console.error("Error fetching user detail:", error);

@@ -22,8 +22,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { studentService } from '../../services/studentService';
-import { storage } from '../../lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { uploadImage } from '../../utils/upload';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { Student } from '../../types';
@@ -96,9 +95,7 @@ export default function StudentSettings() {
 
     setUploading(true);
     try {
-      const storageRef = ref(storage, `profile-photos/${user.uid}`);
-      await uploadBytes(storageRef, file);
-      const photoURL = await getDownloadURL(storageRef);
+      const photoURL = await uploadImage(file, `profile-photos/${user.id}`);
       
       await studentService.updateStudentProfile(user.uid, { photoURL });
       setFormData(prev => ({ ...prev, photoURL }));

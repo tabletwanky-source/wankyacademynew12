@@ -13,8 +13,6 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { examService } from '../../services/examService';
-import { db } from '../../lib/firebase';
-import { query, collection, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { Exam, ExamResult, AssignedExam } from '../../types';
 import ProfessorContact from '../../components/common/ProfessorContact';
 import { motion } from 'motion/react';
@@ -80,18 +78,17 @@ export default function StudentExams() {
       }
     );
 
-    // Subscribe to results
-    const qResults = query(
-      collection(db, 'examResults'),
-      where('studentId', '==', studentData.uid),
-      orderBy('submittedAt', 'desc')
-    );
-    const unsubResults = onSnapshot(qResults, (snap) => {
-      const resultData = snap.docs.map(d => ({ ...d.data(), id: d.id })) as ExamResult[];
-      setResults(resultData);
-    }, (error) => {
-      console.error("Student exams results snapshot error:", error);
-    });
+    // Subscribe to results via examService
+    const loadResults = async () => {
+      try {
+        const resultData = await examService.getStudentResults(studentData.uid);
+        setResults(resultData);
+      } catch (error) {
+        console.error("Student exams results error:", error);
+      }
+    };
+    loadResults();
+    const unsubResults = () => {};
 
     return () => {
       unsubAssignments();

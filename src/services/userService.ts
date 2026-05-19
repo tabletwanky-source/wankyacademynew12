@@ -1,59 +1,65 @@
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  orderBy,
-  doc,
-  getDoc,
-  getDocs,
-  limit
-} from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
-import { AppUser, Student, CourseType, UserStatus } from '../types';
+import { supabase } from '../lib/supabase';
+import { getAuthHeaders } from '../lib/supabaseHelpers';
+import { mapProfileToAppUser, mapAppUserToProfile } from '../lib/supabaseHelpers';
+import { AppUser, Student, CourseType } from '../types';
 
 const API_BASE = '/api/admin';
 
-async function getAuthHeaders() {
-  const user = auth.currentUser;
-  if (!user) return {};
-  const token = await user.getIdToken();
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  };
-}
-
 export const userService = {
-  // Real-time subscriptions
   subscribeAllUsers(callback: (users: AppUser[]) => void) {
-    const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snap) => {
-      const users = snap.docs.map(d => ({ ...d.data(), uid: d.id })) as AppUser[];
-      callback(users);
-    });
+    const channel = supabase
+      .channel('profiles-all')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async () => {
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+        callback((data || []).map(mapProfileToAppUser) as AppUser[]);
+      })
+      .subscribe();
+
+    supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => callback((data || []).map(mapProfileToAppUser) as AppUser[]));
+
+    return () => supabase.removeChannel(channel);
   },
 
   subscribeDepartmentStudents(department: CourseType, callback: (students: Student[]) => void) {
-    const q = query(
-      collection(db, 'users'), 
-      where('role', '==', 'student'),
-      where('department', '==', department),
-      orderBy('createdAt', 'desc')
-    );
-    return onSnapshot(q, (snap) => {
-      const students = snap.docs.map(d => ({ ...d.data(), uid: d.id })) as unknown as Student[];
-      callback(students);
-    });
+    const channel = supabase
+      .channel(`profiles-dept-${department}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async () => {
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('role', 'student')
+          .eq('department', department)
+          .order('created_at', { ascending: false });
+        callback((data || []).map(mapProfileToAppUser) as Student[]);
+      })
+      .subscribe();
+
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'student')
+      .eq('department', department)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => callback((data || []).map(mapProfileToAppUser) as Student[]));
+
+    return () => supabase.removeChannel(channel);
   },
 
   async getUsersByRole(role: string): Promise<AppUser[]> {
-    const q = query(collection(db, 'users'), where('role', '==', role));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...d.data(), uid: d.id })) as AppUser[];
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', role);
+    return (data || []).map(mapProfileToAppUser) as AppUser[];
   },
 
-  // Backend API calls for Admin
   async adminCreateUser(data: any) {
     const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/users`, {
@@ -109,40 +115,33 @@ export const userService = {
     return response.json();
   },
 
-  // Utilities
   async generateNextStudentId(department: CourseType): Promise<string> {
     const prefixes: Record<string, string> = {
       'Informatique': 'INFO',
       'Technique Informatique': 'TECH',
       'Auto École': 'AUTO'
     };
-    
     const prefix = prefixes[department] || 'GEN';
     const year = new Date().getFullYear();
-    
-    // Find highest sequence for this department and year
-    // Note: This is an approximation. In high concurrency, use a counter collection or server-side atomic op.
-    const q = query(
-      collection(db, 'users'),
-      where('role', '==', 'student'),
-      where('department', '==', department),
-      orderBy('studentId', 'desc'),
-      limit(1)
-    );
-    
-    const snap = await getDocs(q);
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('student_id')
+      .eq('role', 'student')
+      .eq('department', department)
+      .order('student_id', { ascending: false })
+      .limit(1);
+
     let seq = 1;
-    
-    if (!snap.empty) {
-      const lastId = snap.docs[0].data().studentId as string;
-      // Format: WA-INFO-2026-0001
-      const parts = lastId.split('-');
+    if (data && data.length > 0) {
+      const lastId = data[0].student_id as string;
+      const parts = (lastId || '').split('-');
       if (parts.length === 4) {
         const lastSeq = parseInt(parts[3]);
         if (!isNaN(lastSeq)) seq = lastSeq + 1;
       }
     }
-    
+
     return `WA-${prefix}-${year}-${seq.toString().padStart(4, '0')}`;
   }
 };

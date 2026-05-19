@@ -69,9 +69,8 @@ import {
 import { adminService } from '../../services/adminService';
 import { studentService } from '../../services/studentService';
 import { multiService } from '../../services/multiService';
-import { db } from '../../lib/firebase';
-import { collection, query, getDocs, where, orderBy, limit, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { auth } from '../../lib/firebase';
+import { supabase } from '../../lib/supabase';
+import { mapProfileToAppUser } from '../../lib/supabaseHelpers';
 
 type SettingsTab = 
   | 'general' 
@@ -82,7 +81,7 @@ type SettingsTab =
   | 'notifications' 
   | 'security' 
   | 'prof_student'
-  | 'firebase' 
+  | 'monitor'
   | 'multiservices' 
   | 'maintenance' 
   | 'backup';
@@ -278,7 +277,7 @@ export default function SystemSettings() {
             <TabButton icon={ShieldCheck} label="Security" active={activeTab === 'security'} onClick={() => setActiveTab('security')} />
             <TabButton icon={Users} label="Professors & Students" active={activeTab === 'prof_student'} onClick={() => setActiveTab('prof_student')} />
             <TabButton icon={Briefcase} label="WA Multiservices" active={activeTab === 'multiservices'} onClick={() => setActiveTab('multiservices')} />
-            <TabButton icon={Database} label="Firebase Status" active={activeTab === 'firebase'} onClick={() => setActiveTab('firebase')} />
+            <TabButton icon={Database} label="System Monitor" active={activeTab === 'monitor'} onClick={() => setActiveTab('monitor')} />
             <TabButton icon={Wrench} label="Maintenance" active={activeTab === 'maintenance'} onClick={() => setActiveTab('maintenance')} />
             <TabButton icon={Download} label="Backup & Restore" active={activeTab === 'backup'} onClick={() => setActiveTab('backup')} />
           </nav>
@@ -305,7 +304,7 @@ export default function SystemSettings() {
                   {activeTab === 'security' && <SecuritySettingsSection settings={security} onChange={setSecurity} />}
                   {activeTab === 'prof_student' && <UserManagementSection />}
                   {activeTab === 'multiservices' && <MultiservicesSettingsSection settings={multiservices} onChange={setMultiservices} />}
-                  {activeTab === 'firebase' && <FirebaseMonitorSection />}
+                  {activeTab === 'monitor' && <FirebaseMonitorSection />}
                   {activeTab === 'maintenance' && <MaintenanceSettingsSection settings={maintenance} onChange={setMaintenance} />}
                   {activeTab === 'backup' && <BackupAndRestoreSection />}
                 </>
@@ -567,13 +566,8 @@ function SecuritySettingsSection({ settings, onChange }: { settings: SystemSecur
   const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-    const q = query(collection(db, 'securityLogs'), orderBy('timestamp', 'desc'), limit(5));
-    return onSnapshot(q, (snap) => {
-      setLogs(snap.docs.map(d => ({id: d.id, ...d.data()})));
-    }, (error) => {
-      console.error("Security logs snapshot error:", error);
-    });
+    // Security logs not yet migrated - show empty state
+    setLogs([]);
   }, []);
 
   return (
@@ -627,13 +621,15 @@ function FirebaseMonitorSection() {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const uSnap = await getDocs(collection(db, 'users'));
-      const eSnap = await getDocs(collection(db, 'exams'));
-      const cSnap = await getDocs(collection(db, 'certificates'));
+      const [uRes, eRes, cRes] = await Promise.all([
+        supabase.from('profiles').select('uid', { count: 'exact', head: true }),
+        supabase.from('exams').select('id', { count: 'exact', head: true }),
+        supabase.from('certificates').select('id', { count: 'exact', head: true })
+      ]);
       setStats({
-        users: uSnap.size,
-        exams: eSnap.size,
-        certificates: cSnap.size,
+        users: uRes.count || 0,
+        exams: eRes.count || 0,
+        certificates: cRes.count || 0,
         lastSync: new Date()
       });
     };
@@ -643,7 +639,7 @@ function FirebaseMonitorSection() {
   return (
     <div className="space-y-10">
       <div>
-        <h2 className="text-lg font-black text-slate-900 uppercase italic tracking-tight mb-2">Firebase Health Monitor</h2>
+        <h2 className="text-lg font-black text-slate-900 uppercase italic tracking-tight mb-2">Database Health Monitor</h2>
         <p className="text-xs text-slate-400 font-medium">Realtime status and infrastructure analytics.</p>
       </div>
 
@@ -772,19 +768,14 @@ function UserManagementSection() {
   const [filterDept, setFilterDept] = useState<string>('all');
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-    const q = filterRole !== 'all' 
-      ? query(collection(db, 'users'), where('role', '==', filterRole), orderBy('fullName'))
-      : query(collection(db, 'users'), orderBy('fullName'));
-    
-    return onSnapshot(q, (snap) => {
-      let data = snap.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
-      setUsers(data);
+    const load = async () => {
+      let query = supabase.from('profiles').select('*').order('full_name', { ascending: true });
+      if (filterRole !== 'all') query = query.eq('role', filterRole);
+      const { data } = await query;
+      setUsers((data || []).map(mapProfileToAppUser));
       setLoading(false);
-    }, (error) => {
-      console.error("User management snapshot error:", error);
-      setLoading(false);
-    });
+    };
+    load();
   }, [filterRole]);
 
   const filteredUsers = users.filter(u => {

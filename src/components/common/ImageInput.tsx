@@ -13,7 +13,7 @@ interface ImageInputProps {
 
 export default function ImageInput({ value, onChange, folder = 'general', label, className }: ImageInputProps) {
   const [uploading, setUploading] = useState(false);
-  const [mode, setMode] = useState<'upload' | 'url'>(value && !value.includes('firebasestorage') ? 'url' : 'upload');
+  const [mode, setMode] = useState<'upload' | 'url'>(value ? 'url' : 'upload');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -1,176 +1,126 @@
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  setDoc, 
-  getDoc,
-  query, 
-  where, 
-  orderBy,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  serverTimestamp,
-  onSnapshot,
-  increment,
-  limit
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import { mapArticle, mapArticleToDb } from '../lib/supabaseHelpers';
 import { Article, ArticleComment, ArticleLike } from '../types';
-import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 
 export const blogService = {
   subscribeArticles(callback: (articles: Article[]) => void, onlyPublished = true) {
-    let q = query(
-      collection(db, 'articles'),
-      orderBy('createdAt', 'desc')
-    );
-    
-    if (onlyPublished) {
-      q = query(q, where('published', '==', true), where('status', '==', 'published'));
-    }
+    const load = async () => {
+      let query = supabase.from('articles').select('*').order('created_at', { ascending: false });
+      if (onlyPublished) {
+        query = query.eq('published', true).eq('status', 'published');
+      }
+      const { data } = await query;
+      callback((data || []).map(mapArticle) as Article[]);
+    };
 
-    return onSnapshot(q, (snap) => {
-      const articles = snap.docs.map(d => ({ ...d.data(), id: d.id })) as Article[];
-      callback(articles);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'articles');
-    });
+    const channel = supabase
+      .channel('articles-all')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'articles' }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   async getArticle(id: string) {
-    try {
-      const docRef = doc(db, 'articles', id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return { ...docSnap.data(), id: docSnap.id } as Article;
-      }
-      return null;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `articles/${id}`);
-      throw error;
-    }
+    const { data } = await supabase.from('articles').select('*').eq('id', id).maybeSingle();
+    return data ? mapArticle(data) as Article : null;
   },
 
   async addArticle(data: Omit<Article, 'id' | 'createdAt' | 'likesCount' | 'commentsCount'>) {
-    try {
-      return await addDoc(collection(db, 'articles'), {
-        ...data,
-        likesCount: 0,
-        commentsCount: 0,
-        createdAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'articles');
-      throw error;
-    }
+    const dbData = {
+      ...mapArticleToDb(data),
+      likes_count: 0,
+      comments_count: 0
+    };
+    const { data: result, error } = await supabase.from('articles').insert(dbData).select().single();
+    if (error) throw error;
+    return result;
   },
 
   async updateArticle(id: string, data: Partial<Article>) {
-    try {
-      const ref = doc(db, 'articles', id);
-      await updateDoc(ref, {
-        ...data,
-        updatedAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `articles/${id}`);
-      throw error;
-    }
+    const { error } = await supabase.from('articles').update({
+      ...mapArticleToDb(data),
+      updated_at: new Date().toISOString()
+    }).eq('id', id);
+    if (error) throw error;
   },
 
   async deleteArticle(id: string) {
-    try {
-      await deleteDoc(doc(db, 'articles', id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `articles/${id}`);
-      throw error;
-    }
+    const { error } = await supabase.from('articles').delete().eq('id', id);
+    if (error) throw error;
   },
 
-  // Comments
   subscribeComments(articleId: string, callback: (comments: ArticleComment[]) => void) {
-    const q = query(
-      collection(db, 'articleComments'),
-      where('articleId', '==', articleId),
-      orderBy('createdAt', 'desc')
-    );
-    return onSnapshot(q, (snap) => {
-      const comments = snap.docs.map(d => ({ ...d.data(), id: d.id })) as ArticleComment[];
-      callback(comments);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'articleComments');
-    });
+    const load = async () => {
+      const { data } = await supabase
+        .from('article_comments')
+        .select('*')
+        .eq('article_id', articleId)
+        .order('created_at', { ascending: false });
+      callback((data || []).map(r => ({
+        id: r.id,
+        articleId: r.article_id,
+        userId: r.user_id,
+        userName: r.user_name,
+        content: r.content,
+        createdAt: r.created_at
+      })) as ArticleComment[]);
+    };
+
+    const channel = supabase
+      .channel(`comments-${articleId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'article_comments', filter: `article_id=eq.${articleId}` }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   async addComment(articleId: string, data: Omit<ArticleComment, 'id' | 'createdAt'>) {
-    try {
-      // 1. Add comment
-      await addDoc(collection(db, 'articleComments'), {
-        ...data,
-        articleId,
-        createdAt: serverTimestamp()
-      });
-      
-      // 2. Increment comment count
-      const articleRef = doc(db, 'articles', articleId);
-      await updateDoc(articleRef, {
-        commentsCount: increment(1)
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'articleComments');
-      throw error;
+    const { error } = await supabase.from('article_comments').insert({
+      article_id: articleId,
+      user_id: data.userId || null,
+      user_name: data.userName,
+      content: data.content
+    });
+    if (error) throw error;
+
+    const { data: article } = await supabase.from('articles').select('comments_count').eq('id', articleId).single();
+    if (article) {
+      await supabase.from('articles').update({ comments_count: (article.comments_count || 0) + 1 }).eq('id', articleId);
     }
   },
 
-  // Likes
   async toggleLike(articleId: string, userId: string) {
-    try {
-      const q = query(
-        collection(db, 'articleLikes'),
-        where('articleId', '==', articleId),
-        where('userId', '==', userId)
-      );
-      const snap = await getDocs(q);
-      
-      const articleRef = doc(db, 'articles', articleId);
+    const { data: existing } = await supabase
+      .from('article_likes')
+      .select('id')
+      .eq('article_id', articleId)
+      .eq('user_id', userId)
+      .maybeSingle();
 
-      if (snap.empty) {
-        // Like
-        await addDoc(collection(db, 'articleLikes'), {
-          articleId,
-          userId,
-          createdAt: serverTimestamp()
-        });
-        await updateDoc(articleRef, {
-          likesCount: increment(1)
-        });
-        return true;
-      } else {
-        // Unlike
-        await deleteDoc(doc(db, 'articleLikes', snap.docs[0].id));
-        await updateDoc(articleRef, {
-          likesCount: increment(-1)
-        });
-        return false;
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'articleLikes');
-      throw error;
+    const { data: article } = await supabase.from('articles').select('likes_count').eq('id', articleId).single();
+    const currentLikes = article?.likes_count || 0;
+
+    if (!existing) {
+      await supabase.from('article_likes').insert({ article_id: articleId, user_id: userId });
+      await supabase.from('articles').update({ likes_count: currentLikes + 1 }).eq('id', articleId);
+      return true;
+    } else {
+      await supabase.from('article_likes').delete().eq('id', existing.id);
+      await supabase.from('articles').update({ likes_count: Math.max(0, currentLikes - 1) }).eq('id', articleId);
+      return false;
     }
   },
 
   async checkUserLike(articleId: string, userId: string) {
-    try {
-      const q = query(
-        collection(db, 'articleLikes'),
-        where('articleId', '==', articleId),
-        where('userId', '==', userId)
-      );
-      const snap = await getDocs(q);
-      return !snap.empty;
-    } catch (error) {
-      return false;
-    }
+    const { data } = await supabase
+      .from('article_likes')
+      .select('id')
+      .eq('article_id', articleId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    return !!data;
   }
 };

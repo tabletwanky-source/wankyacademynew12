@@ -1,45 +1,18 @@
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  addDoc, 
-  setDoc,
-  query, 
-  where,
-  serverTimestamp,
-  increment,
-  writeBatch
-} from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { db, auth } from '../lib/firebase';
-import { Student, Professor, Payment, CourseType, COURSE_PRICING, AppUser } from '../types';
-import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
+import { supabase } from '../lib/supabase';
+import { mapProfileToAppUser, mapAppUserToProfile } from '../lib/supabaseHelpers';
+import { Student, Professor, Payment, CourseType, AppUser } from '../types';
 
 export const adminService = {
-  // Stats
   async getDashboardStats() {
-    if (!auth.currentUser) {
-      return {
-        totalStudents: 0,
-        totalProfessors: 0,
-        totalCourses: 3,
-        totalPayments: 0,
-        perCourse: {}
-      };
-    }
     try {
-      const usersSnap = await getDocs(collection(db, 'users'));
-      const paymentsSnap = await getDocs(collection(db, 'payments'));
-      
-      const allUsers = usersSnap.docs.map(d => d.data() as AppUser);
-      const students = allUsers.filter(u => u.role === 'student') as Student[];
-      const professors = allUsers.filter(u => u.role === 'professor') as Professor[];
-      const payments = paymentsSnap.docs.map(d => d.data() as Payment);
-      
-      const totalPayments = payments.reduce((acc, curr) => acc + curr.amount, 0);
-      
+      const { data: users } = await supabase.from('profiles').select('role, department');
+      const { data: payments } = await supabase.from('payments').select('amount');
+
+      const allUsers = users || [];
+      const students = allUsers.filter(u => u.role === 'student');
+      const professors = allUsers.filter(u => u.role === 'professor');
+      const totalPayments = (payments || []).reduce((acc, p) => acc + (p.amount || 0), 0);
+
       const perCourse = students.reduce((acc, curr) => {
         if (curr.department) {
           acc[curr.department] = (acc[curr.department] || 0) + 1;
@@ -55,124 +28,125 @@ export const adminService = {
         perCourse
       };
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'multiple');
-      throw error;
+      return { totalStudents: 0, totalProfessors: 0, totalCourses: 3, totalPayments: 0, perCourse: {} };
     }
   },
 
-  // User Management
   async getAllStudents() {
-    try {
-      const q = query(collection(db, 'users'), where('role', '==', 'student'));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ ...d.data(), id: d.id })) as any as Student[];
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'users');
-      throw error;
-    }
+    const { data, error } = await supabase.from('profiles').select('*').eq('role', 'student');
+    if (error) throw error;
+    return (data || []).map(mapProfileToAppUser) as Student[];
   },
 
   async getAllProfessors() {
-    try {
-      const q = query(collection(db, 'users'), where('role', '==', 'professor'));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ ...d.data(), uid: d.id })) as unknown as Professor[];
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'users');
-      throw error;
-    }
+    const { data, error } = await supabase.from('profiles').select('*').eq('role', 'professor');
+    if (error) throw error;
+    return (data || []).map(mapProfileToAppUser) as Professor[];
   },
 
   async createProfessor(data: { fullName: string, email: string, department: CourseType, password: string, whatsapp?: string }) {
-    try {
-      // NOTE: Creating user via Firebase Client SDK signs the current user out.
-      // In a real app, this should be done via Firebase Admin SDK in a Cloud Function.
-      // For this applet, we will create the Firestore record and assume Auth is handled by admin or recruitment flow.
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      const uid = userCredential.user.uid;
+    // Create via admin API endpoint to avoid signing out current user
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Not authenticated');
 
-      const profData: Professor = {
-        uid,
-        fullName: data.fullName,
+    const response = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
         email: data.email,
+        password: data.password,
+        fullName: data.fullName,
         role: 'professor',
         department: data.department,
-        active: true,
-        status: 'active',
+        whatsapp: data.whatsapp || '',
         mustChangePassword: true,
-        temporaryPassword: true,
-        whatsapp: data.whatsapp,
-        createdAt: serverTimestamp()
-      };
+        temporaryPassword: true
+      })
+    });
 
-      await setDoc(doc(db, 'users', uid), profData);
-      return profData;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'users');
-      throw error;
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to create professor');
     }
+
+    return response.json();
   },
 
   async updateUser(uid: string, data: Partial<AppUser>) {
-    try {
-      await updateDoc(doc(db, 'users', uid), data);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${uid}`);
-      throw error;
-    }
+    const { error } = await supabase.from('profiles').update(mapAppUserToProfile(data)).eq('uid', uid);
+    if (error) throw error;
   },
 
   async deleteUser(uid: string) {
-    try {
-      await deleteDoc(doc(db, 'users', uid));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `users/${uid}`);
-      throw error;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Not authenticated');
+
+    const response = await fetch(`/api/admin/users/${uid}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to delete user');
     }
   },
 
-  // Payment Management
   async getStudentPayments(studentId: string) {
-    try {
-      const q = query(collection(db, 'payments'), where('studentId', '==', studentId));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ ...d.data(), id: d.id })) as Payment[];
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'payments');
-      throw error;
-    }
+    const { data, error } = await supabase.from('payments').select('*').eq('student_id', studentId);
+    if (error) throw error;
+    return (data || []).map(p => ({
+      id: p.id,
+      studentId: p.student_id,
+      studentCode: p.receipt_code || '',
+      amount: p.amount,
+      paymentType: p.payment_type as any,
+      paymentDate: p.created_at,
+      paymentStatus: 'Paid' as any,
+      remainingBalance: 0
+    })) as Payment[];
   },
 
   async addPayment(paymentData: Omit<Payment, 'id' | 'paymentDate'>) {
-    try {
-      await addDoc(collection(db, 'payments'), {
-        ...paymentData,
-        paymentDate: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'payments');
-      throw error;
-    }
+    const { error } = await supabase.from('payments').insert({
+      student_uid: paymentData.studentId,
+      student_id: paymentData.studentCode || '',
+      amount: paymentData.amount,
+      payment_type: paymentData.paymentType,
+      status: 'paid'
+    });
+    if (error) throw error;
   },
 
   async getPaymentSummary() {
-    try {
-      const snap = await getDocs(collection(db, 'payments'));
-      return snap.docs.map(d => ({ ...d.data(), id: d.id })) as Payment[];
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'payments');
-      throw error;
-    }
+    const { data, error } = await supabase.from('payments').select('*');
+    if (error) throw error;
+    return (data || []).map(p => ({
+      id: p.id,
+      studentId: p.student_uid,
+      studentCode: p.student_id || '',
+      amount: p.amount,
+      paymentType: p.payment_type as any,
+      paymentDate: p.created_at,
+      paymentStatus: 'Paid' as any,
+      remainingBalance: 0
+    })) as Payment[];
   },
 
-  // Identity Code Management
   async getAllStudentCodes() {
-    try {
-      const snap = await getDocs(collection(db, 'studentCodes'));
-      return snap.docs.map(d => ({ ...d.data() })) as any[];
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'studentCodes');
-      throw error;
-    }
+    const { data, error } = await supabase.from('student_codes').select('*');
+    if (error) throw error;
+    return (data || []).map(r => ({
+      code: r.code,
+      email: r.email,
+      linkedUid: r.linked_uid,
+      department: r.department,
+      prefix: r.prefix,
+      year: r.year,
+      used: r.used,
+      createdAt: r.created_at
+    }));
   }
 };

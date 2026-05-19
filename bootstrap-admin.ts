@@ -1,41 +1,54 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
-import firebaseConfig from './firebase-applet-config.json';
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+dotenv.config();
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!;
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { autoRefreshToken: false, persistSession: false }
+});
 
 const ADMIN_EMAIL = 'admin@wanky.ac';
-const ADMIN_PASS = 'admin123'; // In a real app, this would be set via environment variables
+const ADMIN_PASS = 'admin123';
 
 async function setup() {
   try {
     console.log('--- Wanky Academy System Bootstrap ---');
-    
-    // 1. Create Admin Auth
-    const userCredential = await createUserWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_PASS);
-    const uid = userCredential.user.uid;
 
-    // 2. Set Admin Document
-    await setDoc(doc(db, 'admins', uid), {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASS,
+      email_confirm: true,
+      user_metadata: { full_name: 'System Admin' }
+    });
+
+    if (error) {
+      if (error.message?.includes('already registered')) {
+        console.log('SKIP: Admin already exists.');
+      } else {
+        throw error;
+      }
+      process.exit();
+    }
+
+    const uid = data.user.id;
+    await supabase.from('profiles').insert({
       uid,
       email: ADMIN_EMAIL,
+      full_name: 'System Admin',
       role: 'admin',
-      createdAt: new Date()
+      department: 'Informatique',
+      active: true,
+      status: 'active'
     });
 
     console.log('SUCCESS: Admin account initialized.');
     console.log('Email:', ADMIN_EMAIL);
     console.log('Pass:', ADMIN_PASS);
-    
   } catch (error: any) {
-    if (error.code === 'auth/email-already-in-use') {
-      console.log('SKIP: Admin already exists.');
-    } else {
-      console.error('ERROR during bootstrap:', error.message);
-    }
+    console.error('ERROR during bootstrap:', error.message);
   }
   process.exit();
 }

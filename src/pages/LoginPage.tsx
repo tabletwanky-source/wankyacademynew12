@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GraduationCap, ArrowLeft, Loader2, Lock, Terminal } from 'lucide-react';
 import { useAuth, ADMIN_EMAILS } from '../context/AuthContext';
-import { auth, db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '../components/language/LanguageSwitcher';
 
@@ -27,37 +26,29 @@ export default function LoginPage() {
       console.log('Login attempt started for:', emailToLogin);
 
       await login(emailToLogin, password);
-      
-      const loggedUser = auth.currentUser;
+
+      const { data: { user: loggedUser } } = await supabase.auth.getUser();
       if (!loggedUser) throw new Error('Auth failed');
 
-      // Fetch role from Firestore
-      const userRef = doc(db, 'users', loggedUser.uid);
-      const userSnap = await getDoc(userRef);
-      
+      const { data: profile } = await supabase.from('profiles').select('role, must_change_password').eq('uid', loggedUser.id).maybeSingle();
+
       const email = loggedUser.email?.toLowerCase().trim() || '';
       const isAdmin = ADMIN_EMAILS.includes(email);
 
-      if (!userSnap.exists()) {
-        console.log('User Snap does not exist. Checking admin status...', { isAdmin, email });
+      if (!profile) {
         if (isAdmin) {
-          console.log('Redirecting to admin dashboard (no firestore profile)');
           navigate('/admin-dashboard');
           return;
         }
         throw new Error('User profile not found. Please contact support.');
       }
 
-      const userData = userSnap.data();
-      
-      // Handle password change requirement
-      if (userData.mustChangePassword) {
+      if (profile.must_change_password) {
         navigate('/change-password');
         return;
       }
 
-      const userRole = userData.role || (isAdmin ? 'admin' : 'student');
-      console.log('Final user role for redirection:', userRole);
+      const userRole = profile.role || (isAdmin ? 'admin' : 'student');
 
       if (userRole === 'admin') {
         navigate('/admin-dashboard');
@@ -93,39 +84,23 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await loginWithGoogle();
-      const loggedUser = auth.currentUser;
+      const { data: { user: loggedUser } } = await supabase.auth.getUser();
       if (!loggedUser) throw new Error('Google Auth connection lost');
 
       const email = loggedUser.email?.toLowerCase().trim() || '';
       const isAdmin = ADMIN_EMAILS.includes(email);
 
-      // Check for Firestore profile
-      const userRef = doc(db, 'users', loggedUser.uid);
-      const userSnap = await getDoc(userRef);
+      const { data: profile } = await supabase.from('profiles').select('role').eq('uid', loggedUser.id).maybeSingle();
 
-      if (!userSnap.exists()) {
-        if (isAdmin) {
-          navigate('/admin-dashboard');
-        } else {
-          // If not in firestore and not whitelist, we can't determine role reliably here 
-          // but usually LandingPage will catch it after a tick.
-          // For now, assume if they are using Google Login they might be a student or professor
-          // that exists in firestore. If not, LandingPage will handle the error state.
-          navigate('/');
-        }
+      if (!profile) {
+        navigate(isAdmin ? '/admin-dashboard' : '/');
         return;
       }
 
-      const userData = userSnap.data();
-      const userRole = userData.role || (isAdmin ? 'admin' : 'student');
-
-      if (userRole === 'admin') {
-        navigate('/admin-dashboard');
-      } else if (userRole === 'professor') {
-        navigate('/professor/dashboard');
-      } else {
-        navigate('/dashboard');
-      }
+      const userRole = profile.role || (isAdmin ? 'admin' : 'student');
+      if (userRole === 'admin') navigate('/admin-dashboard');
+      else if (userRole === 'professor') navigate('/professor/dashboard');
+      else navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Google login failed');
     } finally {

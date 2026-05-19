@@ -24,15 +24,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  orderBy, 
-  limit 
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -93,91 +85,37 @@ const ProfessorHome = () => {
   useEffect(() => {
     if (!userData) return;
 
-    const handleError = (error: any, path: string) => {
-      console.error(`Firestore error in ${path}:`, error);
-    };
+    const loadStats = async () => {
+      try {
+        const [studentsRes, examsRes, videosRes, homeworkRes, recentRes] = await Promise.all([
+          supabase.from('profiles').select('uid', { count: 'exact' }).eq('role', 'student').eq('department', userData.department),
+          supabase.from('exams').select('id', { count: 'exact' }).eq('created_by', userData.uid).eq('published', true).eq('active', true),
+          supabase.from('videos').select('id', { count: 'exact' }).eq('created_by', userData.uid),
+          supabase.from('homework').select('id', { count: 'exact' }).eq('professor_uid', userData.uid),
+          supabase.from('exams').select('*').eq('created_by', userData.uid).order('created_at', { ascending: false }).limit(5)
+        ]);
 
-    // 1. Students Count (linked to department)
-    const studentsQuery = query(
-      collection(db, 'users'),
-      where('role', '==', 'student'),
-      where('department', '==', userData.department)
-    );
+        setCounts({
+          students: studentsRes.count || 0,
+          exams: examsRes.count || 0,
+          videos: videosRes.count || 0,
+          homeworks: homeworkRes.count || 0
+        });
 
-    // 2. Active Exams Count (published, active and created by this teacher)
-    const examsQuery = query(
-      collection(db, 'exams'),
-      where('createdBy', '==', userData.uid),
-      where('published', '==', true),
-      where('status', '==', 'active')
-    );
-
-    // 3. Videos Count (created by this teacher)
-    const videosQuery = query(
-      collection(db, 'videos'),
-      where('createdBy', '==', userData.uid)
-    );
-
-    // 4. Homework Count (created by this teacher)
-    const homeworkQuery = query(
-      collection(db, 'homeworks'),
-      where('createdBy', '==', userData.uid)
-    );
-
-    // 5. Recent Activity (Last 5 exams)
-    const recentActivityQuery = query(
-      collection(db, 'exams'),
-      where('createdBy', '==', userData.uid),
-      orderBy('createdAt', 'desc'),
-      limit(5)
-    );
-
-    const unsubStudents = onSnapshot(studentsQuery, 
-      (snap) => {
-        setCounts(prev => ({ ...prev, students: snap.size }));
-      },
-      (err) => handleError(err, 'students')
-    );
-
-    const unsubExams = onSnapshot(examsQuery, 
-      (snap) => {
-        setCounts(prev => ({ ...prev, exams: snap.size }));
-      },
-      (err) => handleError(err, 'exams')
-    );
-
-    const unsubVideos = onSnapshot(videosQuery, 
-      (snap) => {
-        setCounts(prev => ({ ...prev, videos: snap.size }));
-      },
-      (err) => handleError(err, 'videos')
-    );
-
-    const unsubHomework = onSnapshot(homeworkQuery, 
-      (snap) => {
-        setCounts(prev => ({ ...prev, homeworks: snap.size }));
-        setLoading(false);
-      },
-      (err) => {
-        handleError(err, 'homeworks');
+        if (recentRes.data) {
+          setRecentExams(recentRes.data.map((e: any) => ({
+            id: e.id, title: e.title, department: e.department,
+            createdAt: e.created_at, active: e.active, published: e.published
+          })));
+        }
+      } catch (error) {
+        console.error('Professor dashboard load error:', error);
+      } finally {
         setLoading(false);
       }
-    );
-
-    const unsubRecent = onSnapshot(recentActivityQuery,
-      (snap) => {
-        setRecentExams(snap.docs.map(d => ({ ...d.data(), id: d.id })));
-      },
-      (err) => handleError(err, 'recentActivity')
-    );
-
-    return () => {
-      unsubStudents();
-      unsubExams();
-      unsubVideos();
-      unsubHomework();
-      unsubRecent();
     };
+
+    loadStats();
   }, [userData]);
 
   return (

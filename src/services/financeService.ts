@@ -1,209 +1,154 @@
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  updateDoc, 
-  addDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot,
-  serverTimestamp,
-  increment
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import { mapPayment } from '../lib/supabaseHelpers';
 import { FinancialSettings, StudentPayment, Receipt } from '../types';
 
-const FINANCIAL_SETTINGS_COLLECTION = 'systemSettings';
-const FINANCIAL_SETTINGS_DOC = 'financial';
-
-// Helper to clean data for Firestore (remove undefined)
-const cleanData = (obj: any) => {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([_, value]) => value !== undefined)
-  );
-};
-
 export const financeService = {
-  // Financial Settings
   async getSettings(): Promise<FinancialSettings | null> {
-    const docRef = doc(db, FINANCIAL_SETTINGS_COLLECTION, FINANCIAL_SETTINGS_DOC);
-    const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? docSnap.data() as FinancialSettings : null;
+    const { data } = await supabase.from('system_settings').select('data').eq('id', 'financial').maybeSingle();
+    return data ? data.data as FinancialSettings : null;
   },
 
   async updateSettings(settings: FinancialSettings) {
-    const docRef = doc(db, FINANCIAL_SETTINGS_COLLECTION, FINANCIAL_SETTINGS_DOC);
-    await setDoc(docRef, settings, { merge: true });
+    const { error } = await supabase.from('system_settings').upsert({
+      id: 'financial',
+      data: settings,
+      updated_at: new Date().toISOString()
+    });
+    if (error) throw error;
   },
 
-  // Student Payments
   async addPayment(paymentData: Omit<StudentPayment, 'id' | 'createdAt' | 'status' | 'validatedBy'>, adminUid: string) {
-    if (!paymentData.studentUid) {
-      throw new Error("ID de l'étudiant manquant.");
-    }
-
-    if (!paymentData.amount || paymentData.amount <= 0) {
-      throw new Error("Montant du paiement invalide.");
-    }
+    if (!paymentData.studentUid) throw new Error("ID de l'étudiant manquant.");
+    if (!paymentData.amount || paymentData.amount <= 0) throw new Error("Montant du paiement invalide.");
 
     const isMonthly = paymentData.paymentType === 'monthly';
-    const isInstallment = paymentData.paymentType.includes('installment');
+    const isInstallment = String(paymentData.paymentType).includes('installment');
 
-    if (isMonthly && !paymentData.month) {
-      throw new Error("Veuillez sélectionner un mois pour le paiement mensuel.");
+    if (isMonthly && !paymentData.month) throw new Error("Veuillez sélectionner un mois pour le paiement mensuel.");
+
+    // Generate receipt code
+    const { data: counter } = await supabase.from('counters').select('count').eq('id', 'receipts').maybeSingle();
+    const count = (counter?.count || 0) + 1;
+    await supabase.from('counters').update({ count, updated_at: new Date().toISOString() }).eq('id', 'receipts');
+
+    const year = new Date().getFullYear();
+    const receiptCode = `WA-REC-${year}-${count.toString().padStart(4, '0')}`;
+
+    const paymentObj: any = {
+      student_uid: paymentData.studentUid,
+      student_id: paymentData.studentId || '',
+      full_name: paymentData.fullName || '',
+      department: paymentData.department || 'N/A',
+      payment_type: paymentData.paymentType,
+      amount: paymentData.amount,
+      status: 'paid',
+      validated_by: adminUid,
+      receipt_code: receiptCode
+    };
+
+    if (isMonthly && paymentData.month) paymentObj.month = paymentData.month;
+    if (isInstallment) paymentObj.installment = paymentData.paymentType;
+
+    const { data: paymentResult, error: paymentError } = await supabase
+      .from('payments')
+      .insert(paymentObj)
+      .select()
+      .single();
+
+    if (paymentError) throw new Error(paymentError.message);
+
+    // Update financial record
+    const recordId = `record_${paymentData.studentUid}`;
+    const { data: existingRecord } = await supabase.from('financial_records').select('*').eq('id', recordId).maybeSingle();
+
+    if (existingRecord) {
+      await supabase.from('financial_records').update({
+        total_paid: (existingRecord.total_paid || 0) + paymentData.amount,
+        updated_at: new Date().toISOString()
+      }).eq('id', recordId);
+    } else {
+      const settings = await this.getSettings();
+      let totalRequired = 0;
+      if (settings) {
+        if (paymentData.department === 'Informatique') totalRequired = settings.informatique.registrationFee + (settings.informatique.monthlyFee * 12);
+        else if (paymentData.department === 'Technique Informatique') totalRequired = settings.techniqueInfo.registrationFee + (settings.techniqueInfo.monthlyFee * 12);
+        else if (paymentData.department === 'Auto École') totalRequired = settings.autoEcole.total + settings.autoEcole.registrationFee;
+      }
+      await supabase.from('financial_records').insert({
+        id: recordId,
+        student_uid: paymentData.studentUid,
+        total_paid: paymentData.amount,
+        total_required: totalRequired,
+        remaining_balance: Math.max(0, totalRequired - paymentData.amount)
+      });
     }
 
-    try {
-      const paymentsRef = collection(db, 'payments');
-      
-      // Generate Unique Receipt Code
-      const receiptCounterRef = doc(db, 'counters', 'receipts');
-      const counterSnap = await getDoc(receiptCounterRef);
-      let count = 1;
-      
-      if (counterSnap.exists()) {
-        count = (counterSnap.data().count || 0) + 1;
-        await updateDoc(receiptCounterRef, { count: increment(1) });
-      } else {
-        await setDoc(receiptCounterRef, { count: 1 });
-      }
+    // Generate receipt
+    let description = "Frais d'Inscription";
+    if (isMonthly) description = `Mensualité - ${paymentData.month}`;
+    else if (isInstallment) description = `Versement - ${paymentData.paymentType}`;
 
-      const year = new Date().getFullYear();
-      const receiptCode = `WA-REC-${year}-${count.toString().padStart(4, '0')}`;
+    await supabase.from('receipts').insert({
+      receipt_code: receiptCode,
+      student_uid: paymentData.studentUid,
+      student_id: paymentData.studentId || '',
+      full_name: paymentData.fullName || '',
+      department: paymentData.department || 'N/A',
+      payment_id: paymentResult.id,
+      payment_type: paymentData.paymentType,
+      description,
+      amount: paymentData.amount,
+      validated_by: adminUid,
+      status: 'valid'
+    });
 
-      // Build payment object carefully
-      const paymentObj: any = {
-        studentUid: paymentData.studentUid,
-        studentName: paymentData.fullName || '',
-        studentCode: paymentData.studentId || '',
-        department: paymentData.department || 'N/A',
-        paymentType: paymentData.paymentType,
-        amount: paymentData.amount,
-        recordedBy: adminUid,
-        status: 'paid',
-        createdAt: serverTimestamp(),
-        studentId: paymentData.studentId || '',
-        fullName: paymentData.fullName || '',
-        validatedBy: adminUid,
-        receiptCode
-      };
-
-      if (isMonthly && paymentData.month) {
-        paymentObj.month = paymentData.month;
-      }
-      
-      if (isInstallment) {
-        paymentObj.installment = paymentData.paymentType;
-      }
-
-      // Final sanitization
-      const finalPayment = Object.fromEntries(
-        Object.entries(paymentObj).filter(([_, v]) => v !== undefined)
-      );
-
-      const docRef = await addDoc(paymentsRef, finalPayment);
-
-      // Update Financial Record
-      const financialRecordRef = doc(db, 'financialRecords', `record_${paymentData.studentUid}`);
-      const recordSnap = await getDoc(financialRecordRef);
-      
-      if (recordSnap.exists()) {
-        await updateDoc(financialRecordRef, {
-          totalPaid: increment(paymentData.amount),
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        const settings = await this.getSettings();
-        let totalRequired = 0;
-        if (settings) {
-          if (paymentData.department === 'Informatique') totalRequired = settings.informatique.registrationFee + (settings.informatique.monthlyFee * 12);
-          else if (paymentData.department === 'Technique Informatique') totalRequired = settings.techniqueInfo.registrationFee + (settings.techniqueInfo.monthlyFee * 12);
-          else if (paymentData.department === 'Auto École') totalRequired = settings.autoEcole.total + settings.autoEcole.registrationFee;
-        }
-
-        await setDoc(financialRecordRef, {
-          studentUid: paymentData.studentUid,
-          totalPaid: paymentData.amount,
-          totalRequired,
-          remainingBalance: Math.max(0, totalRequired - paymentData.amount),
-          updatedAt: serverTimestamp()
-        });
-      }
-
-      // Generate Receipt Document
-      let description = 'Frais d\'Inscription';
-      if (isMonthly) description = `Mensualité - ${paymentData.month}`;
-      else if (isInstallment) description = `Versement - ${paymentData.paymentType}`;
-
-      const receiptObj: any = {
-        receiptCode,
-        studentUid: paymentData.studentUid,
-        studentId: paymentData.studentId || '',
-        fullName: paymentData.fullName || '',
-        department: paymentData.department || 'N/A',
-        paymentId: docRef.id,
-        paymentType: paymentData.paymentType,
-        description,
-        amount: paymentData.amount,
-        generatedAt: serverTimestamp(),
-        validatedBy: adminUid,
-        status: 'valid'
-      };
-
-      const finalReceipt = Object.fromEntries(
-        Object.entries(receiptObj).filter(([_, v]) => v !== undefined)
-      );
-
-      await addDoc(collection(db, 'receipts'), finalReceipt);
-      
-      return docRef.id;
-    } catch (error: any) {
-      console.error("Error recording payment:", error);
-      if (error.code === 'permission-denied') {
-        throw new Error("Accès refusé. Permissions Firestore insuffisantes.");
-      }
-      throw new Error(error.message || "Erreur lors de l'enregistrement du paiement.");
-    }
+    return paymentResult.id;
   },
 
   subscribeToStudentPayments(studentUid: string, callback: (payments: StudentPayment[]) => void) {
-    const q = query(
-      collection(db, 'payments'), 
-      where('studentUid', '==', studentUid),
-      orderBy('createdAt', 'desc')
-    );
-    return onSnapshot(q, (snapshot) => {
-      const payments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentPayment));
-      callback(payments);
-    });
+    const load = async () => {
+      const { data } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('student_uid', studentUid)
+        .order('created_at', { ascending: false });
+      callback((data || []).map(mapPayment) as StudentPayment[]);
+    };
+
+    const channel = supabase
+      .channel(`payments-${studentUid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `student_uid=eq.${studentUid}` }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   subscribeToAllPayments(callback: (payments: StudentPayment[]) => void) {
-    const q = query(collection(db, 'payments'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snapshot) => {
-      const payments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentPayment));
-      callback(payments);
-    });
+    const load = async () => {
+      const { data } = await supabase.from('payments').select('*').order('created_at', { ascending: false });
+      callback((data || []).map(mapPayment) as StudentPayment[]);
+    };
+
+    const channel = supabase
+      .channel('payments-all')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
-  // Student Balances
   async getStudentBalance(studentUid: string, department: string) {
     const settings = await this.getSettings();
     if (!settings) return null;
 
-    const q = query(collection(db, 'payments'), where('studentUid', '==', studentUid));
-    const snapshot = await getDocs(q);
-    const payments = snapshot.docs.map(doc => doc.data() as StudentPayment);
-
-    let totalPaid = 0;
-    payments.forEach(p => totalPaid += p.amount);
+    const { data: payments } = await supabase.from('payments').select('amount').eq('student_uid', studentUid);
+    const totalPaid = (payments || []).reduce((acc, p) => acc + (p.amount || 0), 0);
 
     let requiredTotal = 0;
     if (department === 'Informatique') {
-      requiredTotal = settings.informatique.registrationFee + (settings.informatique.monthlyFee * 12); // Assuming 1 year
+      requiredTotal = settings.informatique.registrationFee + (settings.informatique.monthlyFee * 12);
     } else if (department === 'Technique Informatique') {
       requiredTotal = settings.techniqueInfo.registrationFee + (settings.techniqueInfo.monthlyFee * 12);
     } else if (department === 'Auto École') {
@@ -213,7 +158,7 @@ export const financeService = {
     return {
       paid: totalPaid,
       remaining: Math.max(0, requiredTotal - totalPaid),
-      progress: (totalPaid / requiredTotal) * 100
+      progress: requiredTotal > 0 ? (totalPaid / requiredTotal) * 100 : 0
     };
   }
 };

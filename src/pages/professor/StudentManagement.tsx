@@ -21,8 +21,6 @@ import { Student, CourseType, AttendanceStatus } from '../../types';
 import { userService } from '../../services/userService';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
 
 export default function ProfessorStudentManagement() {
   const { userData } = useAuth();

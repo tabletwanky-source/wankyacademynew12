@@ -1,112 +1,79 @@
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  serverTimestamp,
-  getDocs,
-  limit,
-  orderBy,
-  doc,
-  getDoc,
-  updateDoc
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Badge, Student } from '../types';
+import { supabase } from '../lib/supabase';
+import { mapBadge } from '../lib/supabaseHelpers';
+import { Badge } from '../types';
 import { studentService } from './studentService';
 
 export const badgeService = {
   subscribeStudentBadge(studentUid: string, callback: (badge: Badge | null) => void) {
-    const q = query(
-      collection(db, 'badges'),
-      where('studentUid', '==', studentUid),
-      where('active', '==', true)
-    );
-    return onSnapshot(q, (snap) => {
-      if (!snap.empty) {
-        // Return the first active badge
-        callback({ ...snap.docs[0].data(), id: snap.docs[0].id } as Badge);
+    const load = async () => {
+      const { data } = await supabase
+        .from('badges')
+        .select('*')
+        .eq('student_uid', studentUid)
+        .eq('active', true)
+        .limit(1);
+
+      if (data && data.length > 0) {
+        callback(mapBadge(data[0]) as Badge);
       } else {
         callback(null);
       }
-    }, (error) => {
-      console.error("Badge Subscription Error:", error);
-      callback(null);
-    });
+    };
+
+    const channel = supabase
+      .channel(`badge-${studentUid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'badges', filter: `student_uid=eq.${studentUid}` }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   async generateBadge(studentUid: string) {
-    try {
-      // 1. Check if badge already exists
-      const qCheck = query(
-        collection(db, 'badges'), 
-        where('studentUid', '==', studentUid), 
-        where('active', '==', true)
-      );
-      const snapCheck = await getDocs(qCheck);
-      if (!snapCheck.empty) {
-        return snapCheck.docs[0].id;
-      }
+    const { data: existing } = await supabase
+      .from('badges')
+      .select('id')
+      .eq('student_uid', studentUid)
+      .eq('active', true)
+      .maybeSingle();
 
-      // 2. Load Firestore user profile
-      const userRef = doc(db, 'users', studentUid);
-      const userSnap = await getDoc(userRef);
-      
-      if (!userSnap.exists()) {
-        throw new Error('User profile not found in identification registry.');
-      }
+    if (existing) return existing.id;
 
-      const userData = userSnap.data() as Student;
+    const { data: userData } = await supabase.from('profiles').select('*').eq('uid', studentUid).maybeSingle();
+    if (!userData) throw new Error('User profile not found in identification registry.');
 
-      // 3. Validate required fields & Auto-generate studentId if missing
-      let studentId = userData.studentId;
-      if (!studentId) {
-        console.log("Student ID missing, auto-generating...");
-        studentId = await studentService.generateStudentCode(userData.department || 'Informatique');
-        await updateDoc(userRef, { studentId });
-      }
-
-      if (!userData.fullName) {
-        throw new Error('Incomplete profile: Full Name is required for badge issuance.');
-      }
-
-      // 4. Generate unique badge code
-      // We use the requested format: WA-BADGE-2026-TIMESTAMP
-      const year = 2026;
-      const badgeCode = `WA-BADGE-${year}-${Date.now().toString().slice(-6)}`;
-
-      // 5. Create badge document
-      const badgeData = {
-        badgeCode,
-        studentUid,
-        studentId: studentId,
-        studentName: userData.fullName,
-        department: userData.department || 'Informatique',
-        active: true,
-        createdAt: serverTimestamp(),
-        // Add verification URL as requested
-        verificationUrl: `/verify-badge/${badgeCode}`
-      };
-
-      const docRef = await addDoc(collection(db, 'badges'), badgeData);
-      return docRef.id;
-    } catch (error: any) {
-      console.error("Badge Generation Error:", error);
-      throw error;
+    let studentId = userData.student_id;
+    if (!studentId) {
+      studentId = await studentService.generateStudentCode(userData.department || 'Informatique');
+      await supabase.from('profiles').update({ student_id: studentId }).eq('uid', studentUid);
     }
+
+    if (!userData.full_name) throw new Error('Incomplete profile: Full Name is required for badge issuance.');
+
+    const year = 2026;
+    const badgeCode = `WA-BADGE-${year}-${Date.now().toString().slice(-6)}`;
+
+    const { data: result, error } = await supabase.from('badges').insert({
+      badge_code: badgeCode,
+      student_uid: studentUid,
+      student_id: studentId,
+      student_name: userData.full_name,
+      department: userData.department || 'Informatique',
+      active: true,
+      verification_url: `/verify-badge/${badgeCode}`
+    }).select().single();
+
+    if (error) throw error;
+    return result.id;
   },
 
   async verifyBadge(badgeCode: string) {
-    const q = query(
-      collection(db, 'badges'), 
-      where('badgeCode', '==', badgeCode),
-      where('active', '==', true)
-    );
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      return { ...snap.docs[0].data(), id: snap.docs[0].id };
-    }
-    return null;
+    const { data } = await supabase
+      .from('badges')
+      .select('*')
+      .eq('badge_code', badgeCode)
+      .eq('active', true)
+      .maybeSingle();
+    return data ? mapBadge(data) : null;
   }
 };

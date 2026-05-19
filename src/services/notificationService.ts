@@ -1,53 +1,48 @@
-import { 
-  collection, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  doc, 
-  serverTimestamp,
-  deleteDoc,
-  limit
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import { mapNotification } from '../lib/supabaseHelpers';
 import { Notification } from '../types';
 
 export const notificationService = {
   subscribeToNotifications(userId: string, callback: (notifications: Notification[]) => void) {
     if (!userId) return () => {};
-    
-    const q = query(
-      collection(db, 'notifications'),
-      where('userId', '==', userId),
-      orderBy('createdAt', 'desc'),
-      limit(50)
-    );
 
-    return onSnapshot(q, (snap) => {
-      const notes = snap.docs.map(d => ({ ...d.data(), id: d.id })) as Notification[];
-      callback(notes);
-    }, (error) => {
-      console.error("Notification snapshot error:", error);
-    });
+    const load = async () => {
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      callback((data || []).map(mapNotification) as Notification[]);
+    };
+
+    const channel = supabase
+      .channel(`notifications-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, load)
+      .subscribe();
+
+    load();
+    return () => supabase.removeChannel(channel);
   },
 
   async sendNotification(data: Omit<Notification, 'id' | 'read' | 'createdAt'>) {
-    return await addDoc(collection(db, 'notifications'), {
-      ...data,
-      read: false,
-      createdAt: serverTimestamp()
+    const { error } = await supabase.from('notifications').insert({
+      user_id: data.userId,
+      title: data.title,
+      message: data.message,
+      type: data.type,
+      read: false
     });
+    if (error) throw error;
   },
 
   async markAsRead(notificationId: string) {
-    return await updateDoc(doc(db, 'notifications', notificationId), {
-      read: true
-    });
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('id', notificationId);
+    if (error) throw error;
   },
 
   async deleteNotification(notificationId: string) {
-    return await deleteDoc(doc(db, 'notifications', notificationId));
+    const { error } = await supabase.from('notifications').delete().eq('id', notificationId);
+    if (error) throw error;
   }
 };

@@ -14,8 +14,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { db } from '../../lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -62,12 +61,10 @@ export default function ProfessorSettings() {
     setLoading(true);
 
     try {
-      await updateDoc(doc(db, 'users', userData.uid), {
-        fullName: formData.fullName,
-        whatsapp: formData.whatsapp,
-        language: formData.language,
-        notifications: formData.notifications
-      });
+      await supabase.from('profiles').update({
+        full_name: formData.fullName,
+        whatsapp: formData.whatsapp
+      }).eq('uid', userData.uid);
       toast.success('Profil mis à jour avec succès');
     } catch (error) {
       toast.error('Erreur lors de la mise à jour');

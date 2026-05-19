@@ -1,25 +1,6 @@
-import { 
-  collection,
-  query,
-  where,
-  getDocs,
-  doc, 
-  runTransaction, 
-  serverTimestamp, 
-  setDoc,
-  getDoc,
-  updateDoc,
-  onSnapshot
-} from 'firebase/firestore';
-import { 
-  createUserWithEmailAndPassword,
-  updateProfile,
-  signInWithPopup,
-  updatePassword
-} from 'firebase/auth';
-import { auth, db, googleProvider } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import { mapProfileToAppUser, mapAppUserToProfile } from '../lib/supabaseHelpers';
 import { CourseType, Student } from '../types';
-import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 
 const COURSE_PREFIXES: Record<CourseType, string> = {
   'Auto École': 'AUTO',
@@ -29,250 +10,215 @@ const COURSE_PREFIXES: Record<CourseType, string> = {
 
 export const studentService = {
   subscribeStudentData(uid: string, callback: (student: Student | null) => void) {
-    const docRef = doc(db, 'users', uid);
-    return onSnapshot(docRef, (snap) => {
-      if (snap.exists() && snap.data().role === 'student') {
-        callback({ ...snap.data(), uid: snap.id } as Student);
+    const channel = supabase
+      .channel(`profile-${uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `uid=eq.${uid}` }, async () => {
+        const { data } = await supabase.from('profiles').select('*').eq('uid', uid).maybeSingle();
+        if (data && data.role === 'student') {
+          callback(mapProfileToAppUser(data) as Student);
+        } else {
+          callback(null);
+        }
+      })
+      .subscribe();
+
+    supabase.from('profiles').select('*').eq('uid', uid).maybeSingle().then(({ data }) => {
+      if (data && data.role === 'student') {
+        callback(mapProfileToAppUser(data) as Student);
       } else {
         callback(null);
       }
     });
+
+    return () => supabase.removeChannel(channel);
   },
 
   async updateStudentProfile(uid: string, data: Partial<Student>, newPassword?: string) {
-    const user = auth.currentUser;
-    if (!user || user.uid !== uid) throw new Error('Unauthorized');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || user.id !== uid) throw new Error('Unauthorized');
 
-    // Forbidden fields as per request
     const forbiddenFields = ['studentId', 'role', 'department', 'uid', 'studentCode', 'active', 'status'];
     const filteredData = { ...data };
     forbiddenFields.forEach(f => delete (filteredData as any)[f]);
 
-    try {
-      await updateDoc(doc(db, 'users', uid), filteredData);
-      
-      if (data.fullName || data.photoURL) {
-        await updateProfile(user, {
-          displayName: data.fullName || user.displayName,
-          photoURL: data.photoURL || user.photoURL
-        });
-      }
+    const dbData = mapAppUserToProfile(filteredData);
+    const { error } = await supabase.from('profiles').update(dbData).eq('uid', uid);
+    if (error) throw error;
 
-      if (newPassword) {
-        await updatePassword(user, newPassword);
-      }
-
-      return true;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${uid}`);
-      throw error;
+    if (newPassword) {
+      const { error: pwError } = await supabase.auth.updateUser({ password: newPassword });
+      if (pwError) throw pwError;
     }
+
+    return true;
   },
 
   async generateStudentCode(course: CourseType): Promise<string> {
     const prefix = COURSE_PREFIXES[course];
-    const year = 2026; // System target year as per request
-    const path = `counters/${prefix}`;
+    const year = 2026;
 
-    try {
-      return await runTransaction(db, async (transaction) => {
-        const counterDocRef = doc(db, 'counters', prefix);
-        const counterDoc = await transaction.get(counterDocRef);
-        let newCount = 1;
+    // Atomic counter increment
+    const { data: counter } = await supabase
+      .from('counters')
+      .select('count')
+      .eq('id', prefix)
+      .maybeSingle();
 
-        if (counterDoc.exists()) {
-          newCount = (counterDoc.data()?.count || 0) + 1;
-        }
+    const currentCount = counter?.count || 0;
+    const newCount = currentCount + 1;
 
-        if (newCount > 1000) {
-          throw new Error('Maximum student capacity reached for this course (1000 limit).');
-        }
-
-        transaction.set(counterDocRef, { count: newCount });
-
-        return `WA-${prefix}-${year}-${newCount.toString().padStart(4, '0')}`;
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
-      throw error;
+    if (newCount > 1000) {
+      throw new Error('Maximum student capacity reached for this course (1000 limit).');
     }
+
+    const { error } = await supabase
+      .from('counters')
+      .update({ count: newCount, updated_at: new Date().toISOString() })
+      .eq('id', prefix);
+
+    if (error) throw error;
+
+    return `WA-${prefix}-${year}-${newCount.toString().padStart(4, '0')}`;
   },
 
   async registerStudent(data: Omit<Student, 'uid' | 'studentId' | 'createdAt' | 'photoURL' | 'role' | 'status'> & { password: string, photoURL: string }): Promise<Student> {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      const uid = userCredential.user.uid;
+    const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: { full_name: data.fullName }
+      }
+    });
 
-      const studentCode = await this.generateStudentCode(data.department);
+    if (signUpError) throw signUpError;
+    const uid = authData.user!.id;
 
-      let finalPhotoURL = data.photoURL || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(data.fullName) + '&background=random';
+    const studentCode = await this.generateStudentCode(data.department);
+    const photoURL = data.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.fullName)}&background=random`;
 
-      await updateProfile(userCredential.user, {
-        displayName: data.fullName,
-        photoURL: finalPhotoURL
-      });
+    const profileData = {
+      uid,
+      email: data.email,
+      full_name: data.fullName,
+      phone: data.phone || '',
+      address: data.address || '',
+      date_of_birth: data.dateOfBirth || '',
+      photo_url: photoURL,
+      department: data.department,
+      role: 'student',
+      active: true,
+      status: 'active',
+      student_id: studentCode
+    };
 
-      const studentData: Student = {
-        uid,
-        studentId: studentCode,
-        fullName: data.fullName,
-        email: data.email,
-        phone: data.phone,
-        address: data.address,
-        dateOfBirth: data.dateOfBirth,
-        photoURL: finalPhotoURL,
-        department: data.department,
-        role: 'student',
-        active: true,
-        status: 'active',
-        createdAt: serverTimestamp()
-      };
+    const { error: profileError } = await supabase.from('profiles').insert(profileData);
+    if (profileError) throw profileError;
 
-      // Save student data to unified users collection
-      await setDoc(doc(db, 'users', uid), studentData);
-      
-      // Save mapping for identity lookup
-      await setDoc(doc(db, 'studentCodes', studentCode), {
-        code: studentCode,
-        email: data.email,
-        linkedUid: uid,
-        department: data.department,
-        prefix: COURSE_PREFIXES[data.department],
-        year: 2026,
-        used: true,
-        createdAt: serverTimestamp()
-      });
+    await supabase.from('student_codes').insert({
+      code: studentCode,
+      email: data.email,
+      linked_uid: uid,
+      department: data.department,
+      prefix: COURSE_PREFIXES[data.department],
+      year: 2026,
+      used: true
+    });
 
-      return studentData;
-    } catch (error: any) {
-      handleFirestoreError(error, OperationType.CREATE, 'students');
-      throw error;
-    }
+    return mapProfileToAppUser({ ...profileData, created_at: new Date().toISOString() }) as Student;
   },
 
   async registerWithGoogle(selectedCourse: CourseType): Promise<Student> {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      
-      const existingStudent = await this.getStudentData(user.uid);
-      if (existingStudent) {
-        return existingStudent;
-      }
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) throw new Error('Not authenticated');
 
-      const studentCode = await this.generateStudentCode(selectedCourse);
+    const existing = await this.getStudentData(user.id);
+    if (existing) return existing;
 
-      const studentData: Student = {
-        uid: user.uid,
-        studentId: studentCode,
-        fullName: user.displayName || 'Google Student',
-        email: user.email || '',
-        phone: user.phoneNumber || '',
-        address: 'Google Sign-In',
-        dateOfBirth: '',
-        photoURL: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'G')}&background=random`,
-        department: selectedCourse,
-        role: 'student',
-        active: true,
-        status: 'active',
-        createdAt: serverTimestamp()
-      };
+    const studentCode = await this.generateStudentCode(selectedCourse);
+    const photoURL = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_metadata?.full_name || 'G')}&background=random`;
 
-      await setDoc(doc(db, 'users', user.uid), studentData);
-      
-      // Save mapping for identity lookup
-      await setDoc(doc(db, 'studentCodes', studentCode), {
-        code: studentCode,
-        email: studentData.email,
-        linkedUid: user.uid,
-        department: selectedCourse,
-        prefix: COURSE_PREFIXES[selectedCourse],
-        year: 2026,
-        used: true,
-        createdAt: serverTimestamp()
-      });
+    const profileData = {
+      uid: user.id,
+      email: user.email || '',
+      full_name: user.user_metadata?.full_name || 'Google Student',
+      phone: '',
+      address: 'Google Sign-In',
+      date_of_birth: '',
+      photo_url: photoURL,
+      department: selectedCourse,
+      role: 'student',
+      active: true,
+      status: 'active',
+      student_id: studentCode
+    };
 
-      return studentData;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'students');
-      throw error;
-    }
+    const { error: profileError } = await supabase.from('profiles').insert(profileData);
+    if (profileError) throw profileError;
+
+    await supabase.from('student_codes').insert({
+      code: studentCode,
+      email: profileData.email,
+      linked_uid: user.id,
+      department: selectedCourse,
+      prefix: COURSE_PREFIXES[selectedCourse],
+      year: 2026,
+      used: true
+    });
+
+    return mapProfileToAppUser({ ...profileData, created_at: new Date().toISOString() }) as Student;
   },
 
   async loginWithGoogle(): Promise<Student | null> {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      return await this.getStudentData(result.user.uid);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'students');
-      throw error;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    return this.getStudentData(user.id);
   },
 
   async getStudentData(uid: string): Promise<Student | null> {
-    const docRef = doc(db, 'users', uid);
-    try {
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.role === 'student') {
-          return data as Student;
-        }
-      }
-      return null;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `users/${uid}`);
-      return null;
-    }
+    const { data } = await supabase.from('profiles').select('*').eq('uid', uid).maybeSingle();
+    if (data && data.role === 'student') return mapProfileToAppUser(data) as Student;
+    return null;
   },
 
   async getProfessorData(uid: string): Promise<any | null> {
-    const docRef = doc(db, 'users', uid);
-    try {
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return { ...docSnap.data(), uid: docSnap.id };
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
+    const { data } = await supabase.from('profiles').select('*').eq('uid', uid).maybeSingle();
+    return data ? mapProfileToAppUser(data) : null;
   },
 
   async getStudentsByDepartment(department: CourseType): Promise<Student[]> {
-    try {
-      const q = query(
-        collection(db, 'users'), 
-        where('role', '==', 'student'),
-        where('department', '==', department)
-      );
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ ...d.data(), uid: d.id })) as Student[];
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'users');
-      throw error;
-    }
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'student')
+      .eq('department', department);
+    return (data || []).map(mapProfileToAppUser) as Student[];
   },
 
   subscribeStudentsByDepartment(department: CourseType, callback: (students: Student[]) => void) {
-    const q = query(
-      collection(db, 'users'), 
-      where('role', '==', 'student'),
-      where('department', '==', department)
-    );
-    return onSnapshot(q, (snap) => {
-      const students = snap.docs.map(d => ({ ...d.data(), uid: d.id })) as Student[];
-      callback(students);
-    });
+    const channel = supabase
+      .channel(`students-dept-${department}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async () => {
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('role', 'student')
+          .eq('department', department);
+        callback((data || []).map(mapProfileToAppUser) as Student[]);
+      })
+      .subscribe();
+
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'student')
+      .eq('department', department)
+      .then(({ data }) => callback((data || []).map(mapProfileToAppUser) as Student[]));
+
+    return () => supabase.removeChannel(channel);
   },
 
   async getAllStudents(): Promise<Student[]> {
-    try {
-      const q = query(collection(db, 'users'), where('role', '==', 'student'));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ ...d.data(), uid: d.id })) as Student[];
-    } catch (error) {
-      throw error;
-    }
+    const { data } = await supabase.from('profiles').select('*').eq('role', 'student');
+    return (data || []).map(mapProfileToAppUser) as Student[];
   }
 };

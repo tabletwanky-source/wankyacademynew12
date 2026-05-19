@@ -1,64 +1,41 @@
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  getDocs, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  serverTimestamp,
-  orderBy
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import { mapServiceRequest } from '../lib/supabaseHelpers';
 import { ServiceRequest } from '../types';
 
 export const multiService = {
-  // Public action
   async createRequest(data: Omit<ServiceRequest, 'id' | 'createdAt' | 'status'>) {
-    try {
-      const docRef = await addDoc(collection(db, 'serviceRequests'), {
-        ...data,
-        status: 'pending',
-        createdAt: serverTimestamp()
-      });
-      return docRef.id;
-    } catch (error) {
-      console.error("Error creating service request:", error);
-      throw error;
-    }
+    const { data: result, error } = await supabase.from('service_requests').insert({
+      full_name: data.fullName,
+      phone: data.phone || '',
+      whatsapp: data.whatsapp || '',
+      email: data.email || '',
+      service: data.service,
+      details: data.details || '',
+      appointment_date: data.appointmentDate ? String(data.appointmentDate) : null,
+      document_url: data.documentUrl || '',
+      status: 'pending'
+    }).select().single();
+
+    if (error) throw error;
+    return result.id;
   },
 
-  // Admin actions
   async getAllRequests() {
-    try {
-      const q = query(
-        collection(db, 'serviceRequests'), 
-        orderBy('createdAt', 'desc')
-      );
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ ...d.data(), id: d.id })) as ServiceRequest[];
-    } catch (error) {
-      console.error("Error fetching requests:", error);
-      throw error;
-    }
+    const { data, error } = await supabase
+      .from('service_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapServiceRequest) as ServiceRequest[];
   },
 
   async updateRequestStatus(requestId: string, status: ServiceRequest['status']) {
-    try {
-      const docRef = doc(db, 'serviceRequests', requestId);
-      await updateDoc(docRef, { status });
-    } catch (error) {
-      console.error("Error updating request:", error);
-      throw error;
-    }
+    const { error } = await supabase.from('service_requests').update({ status }).eq('id', requestId);
+    if (error) throw error;
   },
 
   async deleteRequest(requestId: string) {
-    try {
-      await deleteDoc(doc(db, 'serviceRequests', requestId));
-    } catch (error) {
-      console.error("Error deleting request:", error);
-      throw error;
-    }
+    const { error } = await supabase.from('service_requests').delete().eq('id', requestId);
+    if (error) throw error;
   }
 };
