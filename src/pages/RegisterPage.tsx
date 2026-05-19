@@ -1,20 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  GraduationCap, 
-  ArrowLeft, 
-  Loader2, 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Calendar, 
-  Lock, 
-  CheckCircle2, 
-  Download, 
-  LayoutDashboard, 
-  LogIn 
-} from 'lucide-react';
+import { GraduationCap, ArrowLeft, Loader as Loader2, User, Mail, Phone, MapPin, Calendar, Lock, CircleCheck as CheckCircle2, Download, LayoutDashboard, LogIn, Hash } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { studentService } from '../services/studentService';
 import { CourseType, Student } from '../types';
@@ -24,6 +10,12 @@ import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '../components/language/LanguageSwitcher';
 
 import ImageInput from '../components/common/ImageInput';
+
+const DEPARTMENT_PREFIXES: Record<string, string> = {
+  'Informatique': 'INFO',
+  'Technique Informatique': 'TECH',
+  'Auto École': 'AUTO',
+};
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -83,11 +75,7 @@ export default function RegisterPage() {
         // Not a JSON error, keep original message
       }
 
-      if (displayError.includes('auth/operation-not-allowed')) {
-        setError('Email/Password registration is not enabled. Please enable it in the Firebase Console under Authentication > Sign-in method.');
-      } else {
-        setError(displayError);
-      }
+      setError(displayError);
     } finally {
       setLoading(false);
     }
@@ -323,12 +311,23 @@ export default function RegisterPage() {
 
                 <label className="block space-y-2">
                   <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">{t('auth.course')}</span>
-                  <select required value={formData.department} onChange={e => setFormData({...formData, department: e.target.value as CourseType})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all appearance-none cursor-pointer">
+                  <select required value={formData.department} onChange={e => setFormData({...formData, department: e.target.value as CourseType})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all appearance-none cursor-pointer">
                     <option value="">-- {t('auth.course')} --</option>
                     <option value="Auto École">Auto École</option>
                     <option value="Informatique">Informatique</option>
                     <option value="Technique Informatique">Technique Informatique</option>
                   </select>
+                  {formData.department && DEPARTMENT_PREFIXES[formData.department] && (
+                    <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-sky-50 border border-sky-200 rounded-lg">
+                      <Hash className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                      <span className="text-[10px] font-black text-sky-600 uppercase tracking-widest">
+                        ID format:&nbsp;
+                      </span>
+                      <span className="text-[11px] font-mono font-black text-sky-800">
+                        WA-{DEPARTMENT_PREFIXES[formData.department]}-2026-XXXX
+                      </span>
+                    </div>
+                  )}
                 </label>
               </div>
 

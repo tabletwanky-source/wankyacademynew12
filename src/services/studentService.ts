@@ -54,31 +54,9 @@ export const studentService = {
   },
 
   async generateStudentCode(course: CourseType): Promise<string> {
-    const prefix = COURSE_PREFIXES[course];
-    const year = 2026;
-
-    // Atomic counter increment
-    const { data: counter } = await supabase
-      .from('counters')
-      .select('count')
-      .eq('id', prefix)
-      .maybeSingle();
-
-    const currentCount = counter?.count || 0;
-    const newCount = currentCount + 1;
-
-    if (newCount > 1000) {
-      throw new Error('Maximum student capacity reached for this course (1000 limit).');
-    }
-
-    const { error } = await supabase
-      .from('counters')
-      .update({ count: newCount, updated_at: new Date().toISOString() })
-      .eq('id', prefix);
-
+    const { data, error } = await supabase.rpc('generate_student_id', { p_department: course });
     if (error) throw error;
-
-    return `WA-${prefix}-${year}-${newCount.toString().padStart(4, '0')}`;
+    return data as string;
   },
 
   async registerStudent(data: Omit<Student, 'uid' | 'studentId' | 'createdAt' | 'photoURL' | 'role' | 'status'> & { password: string, photoURL: string }): Promise<Student> {
