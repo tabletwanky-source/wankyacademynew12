@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { mapExam, mapExamToDb, mapQuestion, mapQuestionToDb } from '../lib/supabaseHelpers';
 import { Exam, Question, ExamResult, CourseType, AssignedExam } from '../types';
+import { certificateService } from './certificateService';
 
 export const examService = {
   subscribeExamsByDepartment(department: CourseType, callback: (exams: Exam[]) => void) {
@@ -162,6 +163,29 @@ export const examService = {
     }).select().single();
 
     if (error) throw error;
+
+    // Auto-generate certificate if score >= 70%
+    if (percentage >= 70) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, student_id, department')
+        .eq('uid', studentId)
+        .maybeSingle();
+
+      if (profile) {
+        certificateService.generateCertificate({
+          studentUid: studentId,
+          studentName: profile.full_name,
+          studentId: profile.student_id || studentCode,
+          department: profile.department,
+          examId,
+          examTitle: exam.title,
+          score: percentage,
+          issuedBy: 'System'
+        }).catch(() => {/* silent — cert may already exist */});
+      }
+    }
+
     return {
       id: result.id,
       studentId,
@@ -173,7 +197,8 @@ export const examService = {
       passed,
       submittedAt: result.submitted_at,
       answers,
-      attempt: attemptCount
+      attempt: attemptCount,
+      certificateEligible: percentage >= 70
     };
   },
 

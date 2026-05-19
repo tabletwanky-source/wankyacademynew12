@@ -2,21 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { certificateService } from '../services/certificateService';
 import { Certificate, OldCertificate } from '../types';
-import { 
-  ShieldCheck, 
-  Search, 
-  Calendar, 
-  User, 
-  BookOpen, 
-  Award,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  FileText,
-  ExternalLink,
-  Trophy
-} from 'lucide-react';
+import { ShieldCheck, Search, Calendar, User, BookOpen, Award, CircleAlert as AlertCircle, CircleCheck as CheckCircle2, Circle as XCircle, Loader as Loader2, FileText, ExternalLink, Trophy } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const ACADEMY_LOGO = "https://i.postimg.cc/wTr99qNp/d-modern-logo-icon-for-Wanky-Academy-WA-1.png";
@@ -133,7 +119,7 @@ export default function VerifyCertificate() {
                      { label: 'Nom de l\'Étudiant', value: result.data.studentName, icon: User },
                      { label: 'Département', value: result.data.department, icon: BookOpen },
                      { label: 'Examen / Cours', value: result.type === 'new' ? (result.data as Certificate).examTitle : 'Dossier Historique', icon: Award },
-                     { label: 'Date d\'Émission', value: result.data.issueDate?.toDate?.()?.toLocaleDateString() || 'Indisponible', icon: Calendar }
+                     { label: 'Date d\'Émission', value: result.data.issueDate ? new Date(result.data.issueDate?.toDate ? result.data.issueDate.toDate() : result.data.issueDate).toLocaleDateString('fr-FR') : 'Indisponible', icon: Calendar }
                    ].map((item, i) => (
                      <div key={i} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-1">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{item.label}</p>

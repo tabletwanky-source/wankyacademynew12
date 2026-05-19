@@ -50,8 +50,9 @@ export const badgeService = {
 
     if (!userData.full_name) throw new Error('Incomplete profile: Full Name is required for badge issuance.');
 
-    const year = 2026;
-    const badgeCode = `WA-BADGE-${year}-${Date.now().toString().slice(-6)}`;
+    const year = new Date().getFullYear();
+    const seq = Date.now().toString().slice(-6);
+    const badgeCode = `WA-BADGE-${year}-${seq}`;
 
     const { data: result, error } = await supabase.from('badges').insert({
       badge_code: badgeCode,

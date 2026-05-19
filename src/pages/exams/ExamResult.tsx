@@ -1,19 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircle2, 
-  XCircle, 
-  ArrowLeft, 
-  BarChart3, 
-  Clock, 
-  User, 
-  Target,
-  ChevronRight,
-  Loader2,
-  FileText,
-  RotateCcw,
-  Zap,
-  Info
-} from 'lucide-react';
+import { CircleCheck as CheckCircle2, Circle as XCircle, ArrowLeft, ChartBar as BarChart3, Clock, User, Target, ChevronRight, Loader as Loader2, FileText, RotateCcw, Zap, Info, Award } from 'lucide-react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { examService } from '../../services/examService';
 import { useAuth } from '../../context/AuthContext';
@@ -132,6 +118,33 @@ export default function ExamResultView() {
         </div>
         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl translate-x-1/4 -translate-y-1/2"></div>
       </div>
+
+      {/* Certificate eligibility banner */}
+      {result.percentage >= 70 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-amber-50 border border-amber-200 rounded-2xl p-6"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+              <Award className="w-6 h-6 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-amber-900 uppercase italic">Certificate Earned</p>
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mt-0.5">
+                Your certificate has been automatically generated. Visit your certificates page to download it.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/dashboard/certificates"
+            className="shrink-0 px-6 py-3 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-700 transition-all shadow-lg shadow-amber-200 whitespace-nowrap"
+          >
+            View Certificate
+          </Link>
+        </motion.div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-8">
          <div className="lg:col-span-1 space-y-6">

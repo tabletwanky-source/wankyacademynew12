@@ -2,19 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { certificateService } from '../../services/certificateService';
 import { Certificate } from '../../types';
-import { 
-  Award, 
-  Download, 
-  Eye, 
-  ExternalLink, 
-  ShieldCheck, 
-  Calendar,
-  FileText,
-  Printer,
-  Loader2,
-  Trophy,
-  Image as ImageIcon
-} from 'lucide-react';
+import { Award, Download, Eye, ExternalLink, ShieldCheck, Calendar, FileText, Printer, Loader as Loader2, Trophy, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Modal from '../../components/common/Modal';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -126,7 +114,7 @@ export default function StudentCertificates() {
                      </div>
                      <div className="text-right">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Date d'Émission</p>
-                        <p className="text-xs font-bold text-slate-700 italic">{cert.issueDate?.toDate?.()?.toLocaleDateString()}</p>
+                        <p className="text-xs font-bold text-slate-700 italic">{cert.issueDate ? new Date(cert.issueDate?.toDate ? cert.issueDate.toDate() : cert.issueDate).toLocaleDateString('fr-FR') : '—'}</p>
                      </div>
                   </div>
 
@@ -194,7 +182,7 @@ export default function StudentCertificates() {
                             </div>
                             <div>
                                <p className="text-[8px] font-black uppercase tracking-widest text-slate-300">Issued On</p>
-                               <p className="text-[10px] font-bold text-slate-900 uppercase italic">{selectedCert.issueDate?.toDate?.()?.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                               <p className="text-[10px] font-bold text-slate-900 uppercase italic">{selectedCert.issueDate ? new Date(selectedCert.issueDate?.toDate ? selectedCert.issueDate.toDate() : selectedCert.issueDate).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
                             </div>
                          </div>
                          

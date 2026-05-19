@@ -24,21 +24,23 @@ export const certificateService = {
   },
 
   async generateCertificate(data: Omit<Certificate, 'id' | 'issueDate' | 'status' | 'verificationUrl' | 'certificateCode'>) {
-    const year = new Date().getFullYear();
-    const { data: lastCert } = await supabase
-      .from('certificates')
-      .select('certificate_code')
-      .order('certificate_code', { ascending: false })
-      .limit(1);
-
-    let lastNum = 0;
-    if (lastCert && lastCert.length > 0) {
-      const parts = (lastCert[0].certificate_code || '').split('-');
-      lastNum = parseInt(parts[parts.length - 1]) || 0;
+    // Check if cert already exists for this student+exam combo (prevent duplicates)
+    if (data.examId) {
+      const { data: existing } = await supabase
+        .from('certificates')
+        .select('id, certificate_code')
+        .eq('student_uid', data.studentUid)
+        .eq('exam_id', data.examId)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (existing) return existing;
     }
 
-    const newNum = (lastNum + 1).toString().padStart(4, '0');
-    const certificateCode = `WA-CERT-${year}-${newNum}`;
+    // Atomic code generation via DB function
+    const { data: certCode, error: codeError } = await supabase.rpc('generate_certificate_code');
+    if (codeError) throw codeError;
+
+    const certificateCode = certCode as string;
     const verificationUrl = `/verify-certificate/${certificateCode}`;
 
     const { data: result, error } = await supabase.from('certificates').insert({
