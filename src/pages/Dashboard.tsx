@@ -39,6 +39,7 @@ import StudentProfile from './student/StudentProfile';
 import StudentSettings from './student/StudentSettings';
 import StudentPayments from './student/StudentPayments';
 import ExamHistory from './exams/ExamHistory';
+import VideoLessonPage from './learning/VideoLessonPage';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -617,6 +618,7 @@ export default function Dashboard() {
             <Routes>
               <Route index element={<DashboardHome />} />
               <Route path="videos" element={<StudentVideos />} />
+              <Route path="video/:videoId" element={<VideoLessonPage />} />
               <Route path="learning" element={<LearningHub />} />
               <Route path="curriculum" element={<CurriculumBrowser />} />
               <Route path="curriculum/:id" element={<CurriculumViewer />} />

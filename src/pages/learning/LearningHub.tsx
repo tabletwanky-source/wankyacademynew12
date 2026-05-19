@@ -22,6 +22,7 @@ import { notificationService } from '../../services/notificationService';
 import { Video, Homework, HomeworkSubmission } from '../../types';
 import ProfessorContact from '../../components/common/ProfessorContact';
 import { motion, AnimatePresence } from 'motion/react';
+import { Link } from 'react-router-dom';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { toast } from 'sonner';
@@ -182,14 +183,12 @@ export default function LearningHub() {
                         <Film className="w-12 h-12" />
                      </div>
                    )}
-                   <a 
-                    href={v.videoUrl || v.url} 
-                    target="_blank" 
-                    rel="noreferrer"
+                   <Link 
+                    to={`/dashboard/video/${v.id}`}
                     className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white backdrop-blur-[2px]"
                    >
                       <PlayCircle className="w-16 h-16 fill-white/20" />
-                   </a>
+                   </Link>
                    <div className="absolute top-4 left-4 px-2 py-1 bg-white/90 rounded text-[9px] font-black uppercase tracking-widest text-[#0f172a] backdrop-blur-sm">
                       Vidéo
                    </div>
@@ -207,14 +206,12 @@ export default function LearningHub() {
                     </div>
                   )}
 
-                  <a 
-                    href={v.videoUrl || v.url} 
-                    target="_blank" 
-                    rel="noreferrer"
+                  <Link 
+                    to={`/dashboard/video/${v.id}`}
                     className="flex items-center justify-between py-4 border-t border-slate-50 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:tracking-[0.2em] transition-all"
                   >
                     Suivre le cours <ChevronRight className="w-4 h-4" />
-                  </a>
+                  </Link>
                 </div>
               </div>
             ))}

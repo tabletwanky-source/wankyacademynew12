@@ -18,6 +18,32 @@ import { CourseType, Video, Homework, HomeworkSubmission } from '../types';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 
 export const learningService = {
+  async getVideo(id: string) {
+    try {
+      const docRef = doc(db, 'videos', id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { ...docSnap.data(), id: docSnap.id } as Video;
+      }
+      return null;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, `videos/${id}`);
+      throw error;
+    }
+  },
+
+  getEmbedUrl(video: Video) {
+    if (video.videoType === 'youtube' || (video.videoUrl && video.videoUrl.includes('youtube.com'))) {
+      const id = video.videoUrl.split('v=')[1]?.split('&')[0] || video.videoUrl.split('/').pop();
+      return `https://www.youtube.com/embed/${id}`;
+    }
+    if (video.videoType === 'vimeo' || (video.videoUrl && video.videoUrl.includes('vimeo.com'))) {
+      const id = video.videoUrl.split('/').pop();
+      return `https://player.vimeo.com/video/${id}`;
+    }
+    return video.videoUrl || video.url || null;
+  },
+
   // Video Lessons
   subscribeVideosByDepartment(department: CourseType, callback: (videos: Video[]) => void) {
     if (!auth.currentUser) return () => {};

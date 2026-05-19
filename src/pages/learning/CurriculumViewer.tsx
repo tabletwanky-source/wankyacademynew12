@@ -158,12 +158,18 @@ export default function CurriculumViewer() {
                   {/* Simple embed logic */}
                   <iframe 
                     className="w-full h-full"
-                    src={activeLesson.videoType === 'youtube' 
-                      ? (activeLesson.videoUrl.includes('watch?v=') 
-                        ? `https://www.youtube.com/embed/${activeLesson.videoUrl.split('v=')[1]}` 
-                        : activeLesson.videoUrl)
-                      : activeLesson.videoUrl
-                    }
+                    src={(() => {
+                      if (!activeLesson.videoUrl) return null;
+                      if (activeLesson.videoType === 'youtube' || activeLesson.videoUrl.includes('youtube.com')) {
+                        const id = activeLesson.videoUrl.split('v=')[1]?.split('&')[0] || activeLesson.videoUrl.split('/').pop();
+                        return `https://www.youtube.com/embed/${id}`;
+                      }
+                      if (activeLesson.videoType === 'vimeo' || activeLesson.videoUrl.includes('vimeo.com')) {
+                        const id = activeLesson.videoUrl.split('/').pop();
+                        return `https://player.vimeo.com/video/${id}`;
+                      }
+                      return activeLesson.videoUrl;
+                    })()}
                     title={activeLesson.title}
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

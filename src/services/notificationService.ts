@@ -16,6 +16,8 @@ import { Notification } from '../types';
 
 export const notificationService = {
   subscribeToNotifications(userId: string, callback: (notifications: Notification[]) => void) {
+    if (!userId) return () => {};
+    
     const q = query(
       collection(db, 'notifications'),
       where('userId', '==', userId),
@@ -26,6 +28,8 @@ export const notificationService = {
     return onSnapshot(q, (snap) => {
       const notes = snap.docs.map(d => ({ ...d.data(), id: d.id })) as Notification[];
       callback(notes);
+    }, (error) => {
+      console.error("Notification snapshot error:", error);
     });
   },
 

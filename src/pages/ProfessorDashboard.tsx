@@ -93,6 +93,10 @@ const ProfessorHome = () => {
   useEffect(() => {
     if (!userData) return;
 
+    const handleError = (error: any, path: string) => {
+      console.error(`Firestore error in ${path}:`, error);
+    };
+
     // 1. Students Count (linked to department)
     const studentsQuery = query(
       collection(db, 'users'),
@@ -127,10 +131,6 @@ const ProfessorHome = () => {
       orderBy('createdAt', 'desc'),
       limit(5)
     );
-
-    const handleError = (error: any, path: string) => {
-      console.error(`Firestore error in ${path}:`, error);
-    };
 
     const unsubStudents = onSnapshot(studentsQuery, 
       (snap) => {

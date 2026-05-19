@@ -352,7 +352,14 @@ export default function ExamTerminal() {
                      {currentQuestion.videoUrl && (
                         <div className="relative w-full aspect-video rounded-3xl overflow-hidden border-4 border-white shadow-2xl bg-black">
                            <iframe 
-                             src={currentQuestion.videoUrl.replace('watch?v=', 'embed/')} 
+                             src={(() => {
+                               if (!currentQuestion.videoUrl) return null;
+                               if (currentQuestion.videoUrl.includes('youtube.com')) {
+                                 const id = currentQuestion.videoUrl.split('v=')[1]?.split('&')[0] || currentQuestion.videoUrl.split('/').pop();
+                                 return `https://www.youtube.com/embed/${id}`;
+                               }
+                               return currentQuestion.videoUrl;
+                             })()}
                              className="w-full h-full"
                              allowFullScreen
                            ></iframe>
