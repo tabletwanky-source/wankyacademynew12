@@ -1,0 +1,6 @@
+{
+  "name": "Remix: Wanky Academy Portal",
+  "description": "Système de Gestion d'Apprentissage (LMS) complet avec examens d'identification basés sur des images, gestion de cours, génération de certificats automatiques, badges d'identité numériques et portails administratifs pour Wanky Academy.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

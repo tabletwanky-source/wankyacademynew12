@@ -1,0 +1,160 @@
+{
+  "common": {
+    "dashboard": "Panel",
+    "learning": "Currículo",
+    "exams": "Exámenes",
+    "attendance": "Asistencia",
+    "finance": "Finanzas",
+    "profile": "Perfil",
+    "logout": "Cerrar sesión",
+    "welcome": "Bienvenido",
+    "admin": "Administrador",
+    "studentDashboard": "Panel del estudiante",
+    "adminDashboard": "Panel de administración",
+    "status": "Estado",
+    "save": "Guardar cambios",
+    "cancel": "Cancelar",
+    "actions": "Acciones",
+    "loading": "Cargando...",
+    "error": "Error",
+    "viewAll": "Ver todo",
+    "back": "Volver",
+    "settings": "Ajustes",
+    "portal": "Portal",
+    "active": "Activo",
+    "locked": "Bloqueado",
+    "verified": "Verificado"
+  },
+  "landing": {
+    "hero": {
+      "title": "EXCELENCIA EN EL APRENDIZAJE DIGITAL",
+      "subtitle": "Proporcionando capacitación en habilidades digitales de alta calidad para empoderar a profesionales y emprendedores en el mundo moderno.",
+      "join": "Únete Ahora",
+      "access": "Acceso Estudiantes",
+      "enrolling": "Inscripciones para 2026"
+    },
+    "stats": {
+      "learners": "Estudiantes Activos",
+      "uptime": "Disponibilidad de la Plataforma",
+      "security": "Seguridad de Datos",
+      "term": "Trimestre Actual"
+    },
+    "features": {
+      "innovation": "Innovación",
+      "redefining": "REDEFINIENDO LA EDUCACIÓN PARA EL FUTURO.",
+      "description": "Wanky Academy ofrece un enfoque moderno para el aprendizaje digital. Nuestra plataforma ofrece una experiencia fluida para que los estudiantes dominen nuevas habilidades y avancen en sus carreras.",
+      "data": "Datos Personales Seguros",
+      "tracking": "Seguimiento de Progreso en Tiempo Real",
+      "experts": "Instrucción Dirigida por Expertos"
+    },
+    "curriculum": {
+      "title": "Trayectorias Académicas Especializadas.",
+      "description": "Elige entre nuestros módulos principales diseñados para integrar la competencia técnica con habilidades operativas prácticas.",
+      "modules": "MÓDULOS",
+      "enroll": "Inscríbete Ahora"
+    }
+  },
+  "dashboard": {
+    "portal": "Portal del Estudiante",
+    "stats": {
+      "activeCourse": "Curso Activo",
+      "registrationId": "ID de Registro",
+      "systemStatus": "Estado del Sistema",
+      "connected": "Conectado"
+    },
+    "profile": {
+      "program": "Programa Académico",
+      "status": "Estado del Portal"
+    },
+    "requirements": {
+      "title": "Requisito Académico",
+      "description": "Asegúrate de que todos tus datos personales y certificaciones anteriores se envíen para su verificación."
+    },
+    "enrolled": {
+      "title": "Detalles del Programa Inscrito",
+      "registered": "Registrado en"
+    },
+    "tasks": {
+      "title": "Próximas Tareas Académicas",
+      "pending": "Verificación Pendiente",
+      "locked": "Bloqueado",
+      "soon": "Próximamente"
+    }
+  },
+  "footer": {
+    "description": "Wanky Academy es una plataforma en línea que enseña habilidades digitales como WordPress, Canva y herramientas digitales modernas para ayudarte a hacer crecer tu marca o negocio.",
+    "rights": "Todos los derechos reservados.",
+    "contact": "Contacto",
+    "links": "Enlaces rápidos",
+    "home": "Inicio",
+    "exams": "Exámenes",
+    "classes": "Clases",
+    "myCertificates": "Mis certificados",
+    "verifyCertificate": "Verificar certificado",
+    "privacy": "Privacidad"
+  },
+  "attendance": {
+    "present": "Presente",
+    "absent": "Ausente",
+    "late": "Tarde"
+  },
+  "finance": {
+    "paid": "Pagado",
+    "pending": "Pendiente",
+    "partial": "Parcial"
+  },
+  "exams": {
+    "title": "Evaluaciones Disponibles",
+    "terminal": "Centro de Evaluación",
+    "instructions": "Instrucciones del Examen",
+    "start": "Comenzar Evaluación",
+    "submit": "Enviar Respuestas",
+    "passed": "Aprobado",
+    "failed": "Incompleto",
+    "score": "Calificación Final",
+    "percentage": "Resultado Porcentual",
+    "review": "Revisar Evaluación",
+    "success": "¡Felicidades! Has completado con éxito este examen. Tus resultados han sido guardados en tu expediente académico.",
+    "failure": "No alcanzaste la calificación mínima para aprobar este examen. Por favor, revisa el material e inténtalo de nuevo si está permitido.",
+    "passedLabel": "APROBADO",
+    "failedLabel": "REPROBADO",
+    "performance": "Resumen de Rendimiento",
+    "pointsScored": "Puntos Obtenidos",
+    "passingScore": "Calificación de Aprobación",
+    "timeUsed": "Tiempo Utilizado",
+    "details": "Detalles de la Evaluación",
+    "detailedResults": "Resultados Detallados",
+    "yourAnswer": "Tu Respuesta",
+    "expectedAnswer": "Respuesta Esperada",
+    "explanation": "Explicación",
+    "correct": "Correcto",
+    "incorrect": "Incorrecto"
+  },
+  "auth": {
+    "login": "Iniciar Sesión",
+    "register": "Inscripción",
+    "inscription": "Inscripción",
+    "createAccount": "Inscripción",
+    "haveAccount": "¿Ya tienes una cuenta?",
+    "noAccount": "¿No tienes una cuenta?",
+    "studentCode": "ID Estudiante",
+    "password": "Contraseña",
+    "fullName": "Nombre Completo",
+    "email": "Correo Electrónico",
+    "phone": "Teléfono",
+    "address": "Dirección",
+    "birth": "Fecha de Nacimiento",
+    "course": "Curso",
+    "confirmPassword": "Confirmar Contraseña",
+    "sync": "Inscribirse",
+    "existing": "¿Ya estás registrado?",
+    "terminal": "Iniciar Sesión",
+    "googleContinue": "Continuar con Google",
+    "successTitle": "Registro Exitoso",
+    "successSubtitle": "Tu perfil académico ha sido creado.",
+    "yourCode": "Tu Código de Estudiante",
+    "loginInstructions": "Usa este código junto con tu contraseña para futuros inicios de sesión.",
+    "goToDashboard": "Ir al Panel de Control",
+    "downloadSlip": "Descargar Comprobante de Registro"
+  }
+}

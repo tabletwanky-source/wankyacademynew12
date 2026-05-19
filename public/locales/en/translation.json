@@ -1,0 +1,163 @@
+{
+  "common": {
+    "dashboard": "Dashboard",
+    "learning": "Curriculum",
+    "exams": "Exams",
+    "attendance": "Attendance",
+    "finance": "Finance",
+    "profile": "Profile",
+    "logout": "Logout",
+    "welcome": "Welcome",
+    "admin": "Administrator",
+    "studentDashboard": "Student Dashboard",
+    "adminDashboard": "Admin Dashboard",
+    "status": "Status",
+    "save": "Save Changes",
+    "cancel": "Cancel",
+    "actions": "Actions",
+    "loading": "Loading...",
+    "error": "Error",
+    "viewAll": "View All",
+    "back": "Back",
+    "settings": "Settings",
+    "portal": "Portal",
+    "active": "Active",
+    "locked": "Locked",
+    "verified": "Verified"
+  },
+  "landing": {
+    "hero": {
+      "title": "EXCELLENCE IN DIGITAL LEARNING",
+      "subtitle": "Providing high-quality digital skills training to empower professionals and entrepreneurs in the modern world.",
+      "join": "Join Now",
+      "access": "Student Access",
+      "enrolling": "Enrolling for 2026"
+    },
+    "stats": {
+      "learners": "Active Learners",
+      "uptime": "Platform Uptime",
+      "security": "Data Security",
+      "term": "Current Term"
+    },
+    "features": {
+      "innovation": "Innovation",
+      "redefining": "REDEFINING EDUCATION FOR THE FUTURE.",
+      "description": "Wanky Academy provides a modern approach to digital learning. Our platform offers a seamless experience for students to master new skills and advance their careers.",
+      "data": "Secure Personal Data",
+      "tracking": "Real-time Progress Tracking",
+      "experts": "Expert-Led Instruction"
+    },
+    "curriculum": {
+      "title": "Specialized Academic Tracks.",
+      "description": "Choose from our core modules designed to integrate technical proficiency with practical operational skills.",
+      "modules": "MODULES",
+      "enroll": "Enroll Now"
+    }
+  },
+  "dashboard": {
+    "portal": "Student Portal",
+    "stats": {
+      "activeCourse": "Active Course",
+      "registrationId": "Registration ID",
+      "systemStatus": "System Status",
+      "connected": "Connected",
+      "examsPassed": "Exams Passed",
+      "avgScore": "Average Score",
+      "certificatesCount": "Certificates"
+    },
+    "profile": {
+      "program": "Academic Program",
+      "status": "Portal Status"
+    },
+    "requirements": {
+      "title": "Academic Requirement",
+      "description": "Please ensure all your personal details and previous certifications are submitted for verification."
+    },
+    "enrolled": {
+      "title": "Enrolled Program Details",
+      "registered": "Registered On"
+    },
+    "tasks": {
+      "title": "Upcoming Academic Tasks",
+      "pending": "Pending Verification",
+      "locked": "Locked",
+      "soon": "Coming Soon"
+    }
+  },
+  "footer": {
+    "description": "Wanky Academy is an online platform teaching digital skills like WordPress, Canva, and modern digital tools to help you grow your brand or business.",
+    "rights": "All rights reserved.",
+    "contact": "Contact",
+    "links": "Quick Links",
+    "home": "Home",
+    "exams": "Exams",
+    "classes": "Classes",
+    "myCertificates": "My Certificates",
+    "verifyCertificate": "Verify Certificate",
+    "privacy": "Privacy"
+  },
+  "attendance": {
+    "present": "Present",
+    "absent": "Absent",
+    "late": "Late"
+  },
+  "finance": {
+    "paid": "Paid",
+    "pending": "Pending",
+    "partial": "Partial"
+  },
+  "exams": {
+    "title": "Available Assessments",
+    "terminal": "Exam Center",
+    "instructions": "Exam Instructions",
+    "start": "Start Assessment",
+    "submit": "Submit Answers",
+    "passed": "Passed",
+    "failed": "Failed",
+    "score": "Final Score",
+    "percentage": "Percentage Result",
+    "review": "Review Assessment",
+    "success": "Congratulations! You have successfully completed this exam. Your results have been saved to your academic record.",
+    "failure": "You did not meet the minimum passing score for this exam. Please review the material and try again if permitted.",
+    "passedLabel": "PASSED",
+    "failedLabel": "FAILED",
+    "performance": "Performance Summary",
+    "pointsScored": "Points Scored",
+    "passingScore": "Passing Score",
+    "timeUsed": "Time Used",
+    "details": "Assessment Details",
+    "detailedResults": "Detailed Results",
+    "yourAnswer": "Your Answer",
+    "expectedAnswer": "Expected Answer",
+    "explanation": "Explanation",
+    "correct": "Correct",
+    "incorrect": "Incorrect"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Registration",
+    "inscription": "Inscription",
+    "createAccount": "Registration",
+    "haveAccount": "Already have an account?",
+    "noAccount": "Don't have an account?",
+    "studentCode": "Student ID",
+    "password": "Password",
+    "fullName": "Full Name",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "birth": "Date of Birth",
+    "course": "Course",
+    "confirmPassword": "Confirm Password",
+    "sync": "Registration",
+    "existing": "Already registered?",
+    "terminal": "Login",
+    "googleContinue": "Continue with Google",
+    "successTitle": "Registration Successful",
+    "successSubtitle": "Your academic profile has been created.",
+    "yourCode": "Your Student Code",
+    "loginInstructions": "Use your email address and password for future logins.",
+    "goToDashboard": "Go to Dashboard",
+    "downloadSlip": "Download Registration Slip"
+  }
+}

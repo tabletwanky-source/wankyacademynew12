@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wanky Academy | Academic Portal</title>
+    <link rel="icon" type="image/png" href="https://i.postimg.cc/wTr99qNp/d-modern-logo-icon-for-Wanky-Academy-WA-1.png" />
+    <script>
+      // Force window.fetch to be writable to avoid "Cannot set property fetch... only a getter" errors
+      // commonly caused by fetch polyfills in restricted environments.
+      (function() {
+        var _fetch = window.fetch;
+        try {
+          Object.defineProperty(window, 'fetch', {
+            configurable: true,
+            enumerable: true,
+            get: function() {
+              return _fetch;
+            },
+            set: function(v) {
+              _fetch = v;
+            }
+          });
+        } catch (e) {
+          console.warn('Manual fetch setter patch failed:', e);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

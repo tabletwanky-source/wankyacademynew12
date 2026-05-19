@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-dark: #0f172a;
+  --color-accent-indigo: #4f46e5;
+  --color-surface-bg: #f8fafc;
+  --color-border-subtle: #e2e8f0;
+  
+  /* Safe HEX mappings for core colors to prevent oklch issues in exports */
+  --color-indigo-50: #eef2ff;
+  --color-indigo-100: #e0e7ff;
+  --color-indigo-200: #c7d2fe;
+  --color-indigo-300: #a5b4fc;
+  --color-indigo-400: #818cf8;
+  --color-indigo-500: #6366f1;
+  --color-indigo-600: #4f46e5;
+  --color-indigo-700: #4338ca;
+  --color-indigo-800: #3730a3;
+  --color-indigo-900: #312e81;
+  --color-indigo-950: #1e1b4b;
+  
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+  
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-800: #92400e;
+  --color-amber-900: #78350f;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+  }
+}
+
+@layer components {
+  .geometric-card {
+    @apply bg-white rounded-xl border border-slate-200 shadow-sm transition-all;
+  }
+  
+  .geometric-input {
+    @apply w-full p-2.5 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 placeholder:text-slate-400;
+  }
+
+  .geometric-button-primary {
+    @apply py-3 bg-[#0f172a] hover:bg-slate-800 text-white font-bold rounded-lg shadow-lg shadow-indigo-100 transition-all active:scale-[0.98];
+  }
+  
+  .geometric-button-indigo {
+    @apply py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-lg shadow-indigo-200 transition-all active:scale-[0.98];
+  }
+
+  /* Export Safe Utilities */
+  .export-safe {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  .export-safe-dark {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .fixed.inset-0.z-\[100\], .fixed.inset-0.z-\[100\] * {
+    visibility: visible;
+  }
+  .fixed.inset-0.z-\[100\] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white !important;
+  }
+  /* Hide buttons in print */
+  .fixed.inset-0.z-\[100\] button {
+    display: none !important;
+  }
+}

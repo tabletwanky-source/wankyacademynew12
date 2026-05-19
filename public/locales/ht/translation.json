@@ -1,0 +1,160 @@
+{
+  "common": {
+    "dashboard": "Dachbòd",
+    "learning": "Pwogram",
+    "exams": "Egzamen",
+    "attendance": "Prezans",
+    "finance": "Finans",
+    "profile": "Profil",
+    "logout": "Dekonekte",
+    "welcome": "Byenveni",
+    "admin": "Administratè",
+    "studentDashboard": "Dachbòd Elèv",
+    "adminDashboard": "Dachbòd Admin",
+    "status": "Estati",
+    "save": "Anrejistre",
+    "cancel": "Anile",
+    "actions": "Aksyon",
+    "loading": "Chaje...",
+    "error": "Erè",
+    "viewAll": "Wè tout",
+    "back": "Retounen",
+    "settings": "Anviwònman",
+    "portal": "Pòtay",
+    "active": "Aktif",
+    "locked": "Kadnase",
+    "verified": "Verifye"
+  },
+  "landing": {
+    "hero": {
+      "title": "EKSELAN NAN APRANN DIJITAL",
+      "subtitle": "Bay fòmasyon ladrès dijital kalite siperyè pou pèmèt pwofesyonèl ak antreprenè nan mond modèn lan.",
+      "join": "Antre Kounye a",
+      "access": "Aksè Elèv",
+      "enrolling": "Enskripsyon pou 2026"
+    },
+    "stats": {
+      "learners": "Elèv ki Aktif",
+      "uptime": "Disponibilite Platfòm",
+      "security": "Sekirite Done",
+      "term": "Trimès Aktyèl"
+    },
+    "features": {
+      "innovation": "Inovasyon",
+      "redefining": "REDEFINI EDIKASYON POU LAVNI.",
+      "description": "Wanky Academy ofri yon apwòch modèn nan aprantisaj dijital. Platfòm nou an ofri yon eksperyans san pwoblèm pou elèv yo metrize nouvo ladrès ak avanse karyè yo.",
+      "data": "Done Pèsonèl an Sekirite",
+      "tracking": "Swiv Pwogrè an Tan Reyèl",
+      "experts": "Kòmand pa Ekspè"
+    },
+    "curriculum": {
+      "title": "Chemen Akademik Espesyalize.",
+      "description": "Chwazi nan modil prensipal nou yo ki fèt pou entegre konpetans teknik ak ladrès operasyonèl pratik.",
+      "modules": "MODIL YO",
+      "enroll": "Enskri Kounye a"
+    }
+  },
+  "dashboard": {
+    "portal": "Pòtay Elèv la",
+    "stats": {
+      "activeCourse": "Kou ki Aktif",
+      "registrationId": "ID Enskripsyon",
+      "systemStatus": "Estati Sistèm",
+      "connected": "Konekte"
+    },
+    "profile": {
+      "program": "Pwogram Akademik",
+      "status": "Estati Pòtay la"
+    },
+    "requirements": {
+      "title": "Kondisyon Akademik",
+      "description": "Tanpri asire tout detay pèsonèl ou yo ak sètifikasyon anvan yo soumèt pou verifikasyon."
+    },
+    "enrolled": {
+      "title": "Detay Pwogram ou Enskri a",
+      "registered": "Enskri nan dat"
+    },
+    "tasks": {
+      "title": "Travay Akademik k ap Vini yo",
+      "pending": "Verifikasyon an Atant",
+      "locked": "Kadnase",
+      "soon": "Ap Vini Byento"
+    }
+  },
+  "footer": {
+    "description": "Wanky Academy se yon platfòm sou entènèt ki anseye ladrès dijital tankou WordPress, Canva, ak zouti dijital modèn pou ede w grandi mak ou oswa biznis ou.",
+    "rights": "Tout dwa rezève.",
+    "contact": "Kontak",
+    "links": "Lyen rapid",
+    "home": "Akèy",
+    "exams": "Egzamen",
+    "classes": "Klas yo",
+    "myCertificates": "Sètifika Mwen yo",
+    "verifyCertificate": "Verifye Sètifika",
+    "privacy": "Konfidansyalite"
+  },
+  "attendance": {
+    "present": "Prezan",
+    "absent": "Absan",
+    "late": "Anreta"
+  },
+  "finance": {
+    "paid": "Peye",
+    "pending": "An atant",
+    "partial": "Pasyèl"
+  },
+  "exams": {
+    "title": "Evalyasyon ki Disponib",
+    "terminal": "Sant Evalyasyon",
+    "instructions": "Enstriksyon Egzamen",
+    "start": "Kòmanse Evalyasyon",
+    "submit": "Voye Repons yo",
+    "passed": "Ou Pase",
+    "failed": "Ou Echwe",
+    "score": "Nòt Final",
+    "percentage": "Rezilta an Pousantaj",
+    "review": "Wè Evalyasyon an",
+    "success": "Felisitasyon! Ou reyisi egzamen sa a. Rezilta ou yo anrejistre nan dosye akademik ou.",
+    "failure": "Ou pa t jwenn nòt minimòm pou pase egzamen sa a. Tanpri revize materyèl la epi reaplaye si sa pèmèt.",
+    "passedLabel": "OU PASE",
+    "failedLabel": "OU ECHWE",
+    "performance": "Rezime Pèfòmans",
+    "pointsScored": "Pwen ou Jwenn",
+    "passingScore": "Nòt de Pasaj",
+    "timeUsed": "Tan ou Itilize",
+    "details": "Detay Evalyasyon an",
+    "detailedResults": "Rezilta Detaye",
+    "yourAnswer": "Repons ou an",
+    "expectedAnswer": "Repons ki kòrèk la",
+    "explanation": "Eksplikasyon",
+    "correct": "Kòrèk",
+    "incorrect": "Inkorèk"
+  },
+  "auth": {
+    "login": "Konekte",
+    "register": "Enskripsyon",
+    "inscription": "Enskripsyon",
+    "createAccount": "Enskripsyon",
+    "haveAccount": "Èske ou deja gen yon kont?",
+    "noAccount": "Ou pa gen kont?",
+    "studentCode": "ID Elèv",
+    "password": "Modpas",
+    "fullName": "Non Konplè",
+    "email": "Imèl",
+    "phone": "Telefòn",
+    "address": "Adrès",
+    "birth": "Dat Nesans",
+    "course": "Kou",
+    "confirmPassword": "Konfime Modpas",
+    "sync": "Enskri",
+    "existing": "Èske ou deja enskri?",
+    "terminal": "Konekte",
+    "googleContinue": "Kontinye ak Google",
+    "successTitle": "Enskripsyon an Reyisi",
+    "successSubtitle": "Pwofil akademik ou an kreye.",
+    "yourCode": "Kòd Elèv ou an",
+    "loginInstructions": "Sèvi ak adrès imèl ou ak modpas ou pou pwochen koneksyon ou yo.",
+    "goToDashboard": "Ale nan Dashboard",
+    "downloadSlip": "Telechaje Fich Enskripsyon"
+  }
+}
