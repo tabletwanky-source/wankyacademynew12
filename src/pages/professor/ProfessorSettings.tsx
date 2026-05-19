@@ -1,18 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  User, 
-  Mail, 
-  Smartphone, 
-  Lock, 
-  Bell, 
-  Globe, 
-  Save, 
-  Loader2,
-  Camera,
-  Shield,
-  Layers,
-  BookOpen
-} from 'lucide-react';
+import { User, Mail, Smartphone, Lock, Bell, Globe, Save, Loader as Loader2, Camera, Shield, Layers, BookOpen } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';

@@ -1,23 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Calendar, 
-  Shield, 
-  CreditCard, 
-  GraduationCap, 
-  FileText, 
-  CheckCircle2,
-  AlertCircle,
-  ArrowLeft,
-  ChevronRight,
-  MessageCircle,
-  ExternalLink,
-  Award
-} from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, Shield, CreditCard, GraduationCap, FileText, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, ArrowLeft, ChevronRight, MessageCircle, ExternalLink, Award } from 'lucide-react';
 import { AppUser, Student, AttendanceStatus, ExamResult, Payment, Homework } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { mapProfileToAppUser } from '../../lib/supabaseHelpers';

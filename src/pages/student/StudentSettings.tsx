@@ -1,25 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  User, 
-  Camera, 
-  Lock, 
-  Bell, 
-  Shield, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  MessageCircle, 
-  Info,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  Save,
-  Image as ImageIcon,
-  Upload,
-  ExternalLink,
-  ChevronRight,
-  UserCheck
-} from 'lucide-react';
+import { User, Camera, Lock, Bell, Shield, Mail, Phone, MapPin, MessageCircle, Info, Loader as Loader2, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, Save, Image as ImageIcon, Upload, ExternalLink, ChevronRight, UserCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { studentService } from '../../services/studentService';
 import { uploadImage } from '../../utils/upload';

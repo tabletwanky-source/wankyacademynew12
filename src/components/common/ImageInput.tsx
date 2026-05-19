@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Link as LinkIcon, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Upload, Link as LinkIcon, X, Loader as Loader2, Image as ImageIcon } from 'lucide-react';
 import { uploadImage, validateImageUrl } from '../../utils/upload';
 import { toast } from 'sonner';
 

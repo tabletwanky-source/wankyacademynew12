@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  FileText, 
-  Clock, 
-  ChevronRight, 
-  CheckCircle, 
-  AlertCircle,
-  Loader2,
-  Calendar,
-  Lock,
-  Play
-} from 'lucide-react';
+import { FileText, Clock, ChevronRight, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Loader as Loader2, Calendar, Lock, Play } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { examService } from '../../services/examService';

@@ -1,28 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, NavLink, Routes, Route } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  BookOpen, 
-  CreditCard, 
-  FileText, 
-  User, 
-  Settings, 
-  Video,
-  LogOut, 
-  Menu, 
-  X, 
-  Bell,
-  Search,
-  GraduationCap,
-  Calendar,
-  Loader2,
-  CheckCircle2,
-  Clock,
-  ClipboardList,
-  History,
-  ChevronRight,
-  Video as VideoIcon
-} from 'lucide-react';
+import { LayoutDashboard, BookOpen, CreditCard, FileText, User, Settings, Video, LogOut, Menu, X, Bell, Search, GraduationCap, Calendar, Loader as Loader2, CircleCheck as CheckCircle2, Clock, ClipboardList, History, ChevronRight, Video as VideoIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import LearningHub from './learning/LearningHub';
 import AttendanceHistory from './learning/AttendanceHistory';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { GraduationCap, ArrowLeft, Loader2, Lock, ShieldCheck } from 'lucide-react';
+import { GraduationCap, ArrowLeft, Loader as Loader2, Lock, ShieldCheck } from 'lucide-react';
 import { useAuth, ADMIN_EMAILS } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useTranslation } from 'react-i18next';

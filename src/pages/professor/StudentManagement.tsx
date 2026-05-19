@@ -1,21 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Users, 
-  Search, 
-  Filter, 
-  Mail, 
-  Phone, 
-  ChevronRight,
-  ExternalLink,
-  MessageCircle,
-  FileText,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  User,
-  GraduationCap,
-  Eye
-} from 'lucide-react';
+import { Users, Search, ListFilter as Filter, Mail, Phone, ChevronRight, ExternalLink, MessageCircle, FileText, Calendar, CircleCheck as CheckCircle2, Clock, User, GraduationCap, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Student, CourseType, AttendanceStatus } from '../../types';
 import { userService } from '../../services/userService';

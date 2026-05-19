@@ -1,24 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  BookOpen, 
-  Video, 
-  ClipboardCheck, 
-  FileText, 
-  Settings,
-  LogOut, 
-  Menu, 
-  X,
-  PlusCircle,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  ChevronRight,
-  Bell,
-  Search
-} from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, Video, ClipboardCheck, FileText, Settings, LogOut, Menu, X, CirclePlus as PlusCircle, Clock, CircleCheck as CheckCircle, CircleAlert as AlertCircle, ChevronRight, Bell, Search } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';

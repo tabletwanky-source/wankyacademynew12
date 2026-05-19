@@ -1,34 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, NavLink, Routes, Route, Link, Navigate } from 'react-router-dom';
-import { 
-  BarChart3, 
-  Users, 
-  UserPlus, 
-  CreditCard, 
-  GraduationCap, 
-  Settings, 
-  LogOut, 
-  Search, 
-  Bell, 
-  MoreVertical, 
-  ChevronRight,
-  Filter,
-  Plus,
-  Trash2,
-  Edit,
-  CheckCircle2,
-  AlertCircle,
-  UserCheck,
-  BookOpen,
-  FileText,
-  Menu,
-  X,
-  Briefcase,
-  Award,
-  FlaskConical,
-  Film,
-  Video
-} from 'lucide-react';
+import { ChartBar as BarChart3, Users, UserPlus, CreditCard, GraduationCap, Settings, LogOut, Search, Bell, MoveVertical as MoreVertical, ChevronRight, ListFilter as Filter, Plus, Trash2, CreditCard as Edit, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, UserCheck, BookOpen, FileText, Menu, X, Briefcase, Award, FlaskConical, Film, Video } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { adminService } from '../services/adminService';
 import { Student, Professor, Payment, CourseType, AppUser } from '../types';
